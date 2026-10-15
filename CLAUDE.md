@@ -28,6 +28,14 @@ live on the owner's stream.
   (`0232bd6f-53be-464b-844e-deeb5ec0616c`), the plugin enabled in
   `.claude/settings.json`. A PNG of each sheet goes to
   `C:\joskii-vibecoding\previews\<topic>-<date>` as well.
+- `C:\joskii-vibecoding\previews\medkit-current\` holds only the screens the
+  owner has approved, one PNG per screen (`1-home.png`, `2-medicine.png`, …):
+  replace a file when its screen changes, remove it when the screen is dropped,
+  and never put variants or old versions there.
+- `C:\joskii-vibecoding\previews\medkit-review\` holds only what waits for the
+  owner's look right now, under the same file names. Once she approves a
+  screen, move it to `medkit-current`; drop what she rejects. Empty when nothing
+  is waiting.
 
 ## The stack
 
