@@ -46,8 +46,10 @@ cabinet with its expiry date.
 1. `[Home]` → «Додати» → `[Scanner]` opens straight away; «Ввести вручну» below.
 2. a) **Barcode known** → `[Confirm medicine]` name, form, strength from the
       Register; expiry from DataMatrix if present.
-   b) **Barcode unknown** → `[Register search]` «Ми ще не знаємо цей код. Знайдіть
-      ліки, і наступного разу він розпізнається» → picks → `[Confirm medicine]`.
+   b) **Barcode unknown** → «Ми ще не знаємо цей код» with «Сфотографувати
+      коробку» first and «Знайти вручну» next to it. A photo is read and turned
+      into a `[Register search]` with the best match on top; she taps it, or
+      searches herself → `[Confirm medicine]`. Next time the code is known.
    c) **Not in the Register** (supplements, foreign pack) → `[Medicine form]`
       by hand: name and expiry required, the rest optional.
 3. On `[Confirm medicine]` she sets the expiry (month/year) and, optionally,
@@ -64,7 +66,7 @@ pack is in the list with an expiry status.
 **Trigger:** push at 09:00 «Сорбіфер · 1 таблетка». **Goal:** take it and not
 think about stock.
 
-1. Push with actions «Прийняла» / «Відкласти на 15 хв». She taps «Прийняла» from
+1. Push with actions «Прийняти» / «Відкласти на 15 хв». She taps «Прийняти» from
    the lock screen; the app does not open.
 2. The app records the intake and subtracts 1 from the pack expiring soonest.
 3. If stock drops to the threshold → next morning push «Сорбіферу залишилось на
@@ -72,7 +74,7 @@ think about stock.
 4. Missed dose → one repeat after the set interval, then it shows as missed in
    `[Today]`.
 
-**Also:** opening the app, `[Home]` shows the next dose with a «Прийняла» button.
+**Also:** opening the app, `[Home]` shows the next dose with a «Прийняти» button.
 
 **Friction:** stock was never counted (quantity empty) → no low-stock warning,
 which is fine; the person took it but forgot to tap → can mark it later in
@@ -84,7 +86,7 @@ which is fine; the person took it but forgot to tap → can mark it later in
 **Goal:** decide what to do with it.
 
 1. Push → `[Medicine]` in the Dacha cabinet, the pack highlighted.
-2. Actions: «Утилізувала» (pack leaves the list), «Купити нову» (to the shopping
+2. Actions: «Утилізувати» (pack leaves the list), «Купити нову» (to the shopping
    list), «Нагадати пізніше».
 3. Expired packs stay on top of `[Home]` with the same actions until handled.
 
@@ -100,7 +102,7 @@ what to bring next time.
 1. `[Home]` → cabinet switcher in the title → «Батьки».
 2. `[Home]` of that cabinet: expired on top, then expiring, then the rest.
    No intake section: the cabinet is `expiry_only`.
-3. Goes through the box: «Утилізувала» on expired packs; scans packs that are
+3. Goes through the box: «Утилізувати» on expired packs; scans packs that are
    not in the app yet (J2).
 4. Adds what is missing to the shopping list.
 5. Optional: invites a sibling who also helps the parents → `[Members]` →
@@ -119,7 +121,7 @@ not expired, in this cabinet or another.
 1. `[Home]` → search «ібупрофен» or tag «Головний біль».
 2. `[Search results]` across all cabinets, this one first, expired ones greyed
    out. «Нурофен» is found by its substance, ibuprofen.
-3. Opens `[Medicine]` → «Інструкція» (from the Register) → «Прийняла −1».
+3. Opens `[Medicine]` → «Інструкція» (from the Register) → «Прийняти».
 
 **Done when:** she knows what she has and where.
 

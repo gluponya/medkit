@@ -7,6 +7,11 @@ Data lives on the phone (expo-sqlite + Drizzle). Nothing needs an account until 
 cabinet is shared; then that cabinet syncs through Supabase. The barcode map is
 shared by all users from the start (see "Barcodes").
 
+The phone signs in to Supabase **anonymously** on first launch, without asking
+anything (decided 2026-10-15). That gives it an identity for the barcode map,
+the photo limit and later sharing; an email or Apple sign-in can be linked to
+the same user later, so nothing is lost.
+
 ## Entities
 
 ```
@@ -43,9 +48,9 @@ What the medicine is, independent of how many packs there are.
 | form | Tablets, capsules, drops, syrup, ointment, spray, powder, other. Sets the stock unit. |
 | strength | «200 мг», «0.05%». Free text. |
 | manufacturer | Optional. |
-| tags | Categories as tags, several per medicine: «Головний біль», «Застуда», «Алергія»… |
-| rx | Prescription only. Low stock then reminds «не забудьте рецепт». |
-| register_entry | Optional link to the State Register: instruction link, full form text. |
+| tags | Categories as tags, several per medicine, the way people look for medicines in a pharmacy: «Серце і судини», «Знеболювальні», «Від алергії»… Set from the Register's ATC code through our own ATC → category table; can be changed. |
+| rx | Prescription only. From the Register's «Умови відпуску» when linked. Low stock then reminds «не забудьте рецепт». |
+| register_entry | Optional link to the State Register: instruction link, full form text, shelf life. |
 | low_stock_threshold | Optional, in stock units. Empty means "no low-stock warning". |
 
 ### Package
@@ -54,9 +59,9 @@ One physical pack. Two packs of the same medicine can have different expiry date
 
 | Field | Notes |
 |---|---|
-| expires | Required. Month and year, as printed on packs; stored as the last day of that month. |
+| expires | Required. Month and year, as printed on packs; stored as the last day of that month. Further away than the Register's shelf life from today → «Точно?», a likely typo. |
 | quantity | Optional. In the form's unit (pieces for tablets, ml for liquids). Empty = not counted, the pack is just "there". |
-| opened_at | Optional. For drops and syrups that expire sooner once opened (later). |
+| opened_at | Never asked for tablets: set automatically when a pack is added with less than its full count (the date it was added), or on the first intake from it. Later, for drops and syrups that expire sooner once opened, the form asks for it, since it changes the expiry. |
 | status | `active`, `used_up`, `disposed`. Used-up and disposed packs stay for history but leave the list. |
 
 ### Reminder (only in `with_intake` cabinets)
@@ -74,8 +79,14 @@ see it.
 ### Intake
 
 One event: a dose taken, skipped, or (for `as_needed`) taken without a reminder.
-`taken` subtracts `dose` from a package of that medicine, the one that expires
-soonest first.
+`taken` subtracts `dose` from a package of that medicine: an opened one first,
+then the one that expires soonest.
+
+A snooze («Пізніше» in the app, «Відкласти на 15 хв» in the push) is not an
+Intake: the dose stays open, the push comes again 15 minutes later, and the
+next-dose card says «Нагадаю о 13:15». It can be snoozed again. A dose not
+taken by the next dose of the same medicine (or by the end of the day) is
+recorded as `skipped` and shows as missed.
 
 ### Person and Membership (shared cabinets only)
 
@@ -115,9 +126,12 @@ the two. They become: «Протерміновано», «Скоро закін�
 There is no open barcode→medicine dataset for Ukraine (research, 2026-10-15):
 
 - The State Register of Medicinal Products (data.gov.ua, CC-BY, CSV in cp1251)
-  has names, INN, forms with pack sizes, manufacturers, registration numbers,
-  Rx flag and instruction links, but **no barcodes**. It ships inside the app as
-  a search index.
+  has names, INN, composition, forms with pack sizes (free text), ATC codes,
+  manufacturers, registration numbers, Rx flag, shelf life and instruction
+  links (mostly `.mht`), but **no barcodes**. It ships inside the app as a
+  search index. The January 2026 file has 12,511 active medicines (7,712
+  names); a first rough parse fills the form for 92% of them, the strength for
+  99% and the pack size for 93%.
 - Barcode catalogs exist only commercially (Morion, Proxima Research).
 - DataMatrix codes (GTIN + batch + **expiry**) become mandatory only from
   1 Jan 2028; some packs already carry them.
@@ -130,4 +144,23 @@ So:
    register entry, pack size, confirmations)`.
 3. On a miss, the user picks the medicine from the Register search once; the
    pair is saved for everyone and trusted after several matching confirmations.
-4. "Code not found" is a normal path, not an error: it opens the search.
+4. "Code not found" is a normal path, not an error: it offers a photo of the
+   box first and the search next to it.
+
+### A photo of the box
+
+As in Freshka (`supabase/functions/recognise-photo` there): an Edge Function
+sends the photo to a vision model and gets back what is printed on the box —
+name, strength, form, pack size, manufacturer and, from a second photo of the
+flap, the expiry. The model's answer is never stored as the medicine: it is a
+query for the Register search, and the person confirms the entry it finds. The
+confirmed pair goes into `barcode_map` like a hand-picked one.
+
+The function takes only the anonymous (or full) user's session and counts the
+photos per user per day, so nobody can spend the model's money from outside.
+A few photos are free, then the photo is paid (the owner, 2026-10-15),
+probably as a one-time purchase rather than a subscription; the price is open.
+The daily limit stays as a guard against abuse.
+
+The Register's instructions are mostly `.mht` files, which an iPhone does not
+open; they are turned into text once on the server.
