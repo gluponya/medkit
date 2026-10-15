@@ -21,7 +21,9 @@ live on the owner's stream.
 - **Never open or start Figma** (the app, a plugin or anything that launches it):
   it holds a lot of memory while open. Work from the exported files.
 - Improved designs and variants are drafted in **Superdesign**, in a project of
-  this app's own, never in Figma. A PNG of each sheet goes to
+  this app's own, never in Figma: the project «Medkit»
+  (`0232bd6f-53be-464b-844e-deeb5ec0616c`), the plugin enabled in
+  `.claude/settings.json`. A PNG of each sheet goes to
   `C:\joskii-vibecoding\previews\<topic>-<date>` as well.
 
 ## The stack
