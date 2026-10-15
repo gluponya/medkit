@@ -1,14 +1,23 @@
-# New app (working name)
+# Medkit (working name)
 
-A mobile app built from a design the owner made in Figma. The plan: improve the
-design first, then build the app from it.
+A home medicine cabinet app («Аптечка»): the medicines at hand, their expiry,
+intake reminders, a cabinet shared with family. Built from a design the owner made
+in Figma. The plan: improve the design first, then build the app from it.
 
-Status: the folder is empty. Nothing is decided yet beyond the stack.
+Status: preparation only — the design is exported, no code yet. The rest is done
+live on the owner's stream.
+
+- UI languages at the start: Ukrainian and English (the Figma texts are Ukrainian).
+- Public repo: https://github.com/gluponya/medkit. The owner streams the work, so
+  never print secrets, `.env*` values or tokens to the screen, not even partly.
 
 ## The design
 
-- The owner's Figma screens are exported as PNG into `design/figma/`. That is the
-  starting point; read them before proposing anything.
+- The owner's Figma screens are exported as PNG into `design/figma/` (with
+  `index.json` listing pages, names and sizes). That is the starting point; read
+  them before proposing anything. To refresh them:
+  `node --env-file=.env.local tools/figma-export.mjs [scale]` — it goes through
+  the Figma REST API with `FIGMA_TOKEN` and `FIGMA_FILE_KEY` from `.env.local`.
 - **Never open or start Figma** (the app, a plugin or anything that launches it):
   it holds a lot of memory while open. Work from the exported files.
 - Improved designs and variants are drafted in **Superdesign**, in a project of
