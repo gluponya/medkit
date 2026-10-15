@@ -18,6 +18,9 @@ live on the owner's stream.
   them before proposing anything. To refresh them:
   `node --env-file=.env.local tools/figma-export.mjs [scale]` — it goes through
   the Figma REST API with `FIGMA_TOKEN` and `FIGMA_FILE_KEY` from `.env.local`.
+- `docs/model.md` (data and rules), `docs/journeys.md` (user journeys) and
+  `docs/screens.md` (the screens they need, mapped to the Figma frames) say what
+  the redesign builds. Change the model first, then the journeys, then screens.
 - **Never open or start Figma** (the app, a plugin or anything that launches it):
   it holds a lot of memory while open. Work from the exported files.
 - Improved designs and variants are drafted in **Superdesign**, in a project of
