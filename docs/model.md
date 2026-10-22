@@ -31,6 +31,7 @@ A place where medicines are kept: home, car, dacha, parents'.
 |---|---|
 | name | Prefilled from the place: «Дім», «Машина», «Дача», «Батьки». |
 | place | `home`, `car`, `dacha`, `parents`, `other`. Picks the icon and the default mode. |
+| icon | One of twelve line icons. Defaults from the place (Інше: a first-aid kit); can be picked when the cabinet is created or later. |
 | mode | `expiry_only` or `with_intake`. Home defaults to `with_intake`, the rest to `expiry_only`. Can be changed. |
 | expiry_warning_days | When a pack counts as «Закінчується термін». Default 30. |
 
@@ -90,8 +91,11 @@ recorded as `skipped` and shows as missed.
 
 ### Person and Membership (shared cabinets only)
 
-A person exists locally without an account. Signing in (Apple, Google, phone)
-happens when they invite someone or join a cabinet.
+Sharing needs no account (decided 2026-10-22): the anonymous user from the
+first launch can invite and join. Signing in (Apple, Google, phone) is only
+offered, in Settings and once after joining or inviting, as «Зберегти доступ
+на новому телефоні». Without it, a new phone loses the shared cabinets and the
+person has to be invited again.
 
 | Role | Can |
 |---|---|

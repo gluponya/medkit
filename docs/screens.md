@@ -11,10 +11,9 @@ Collected from `docs/journeys.md`. **Figma** points to the exported frame in
 
 | Screen | Journeys | Figma | What it does / what changes |
 |---|---|---|---|
-| Welcome | J1, J7 | 039 · redo | «Почати» without an account; «У мене є код запрошення». |
-| Where is the cabinet | J1 | new | Дім / Машина / Дача / Батьки / Інше. Sets name and mode. Also used for «Додати аптечку». |
-| Quick fill | J1 | 051 · redo | Checklist of popular medicines + scan + search. Replaces «Швидкий старт» and categories. |
-| Expiry for picked | J1 | new | Month/year for each ticked medicine; «Не знаю». |
+| Welcome | J1, J7 | 039 · redo | The mark, the name and one line in the middle; «Почати» without an account; «У мене є запрошення» as a secondary button. |
+| Where is the cabinet | J1 | new | Дім / Машина / Дача / Батьки / Інше as tiles, a line under each says what it tracks. The picked tile opens with the name (prefilled) and twelve icon tiles (preset from the place). Also used for «Додати аптечку». |
+| First steps (on Home) | J1 | new | Empty Home on the first visit: a «Перші кроки» card with two steps, add medicines and (only `with_intake`) reminders. The open step has its buttons and «Пізніше»; done steps get a tick, skipped ones reopen on a tap. Gone for good once every step is done or skipped. |
 | Home | J1–J6 | 002, 001 · redo | Cabinet switcher in the title, search, next dose with «Прийняти» (only `with_intake`), «Потребує уваги» (expired, expiring, low stock), then a compact list. One version, not two. |
 | Today | J3 | 038 · redo | Today's doses as a timeline: past and later doses are small rows marked by a circle, the next dose is a big card with the only «Прийняти» (and «Пізніше»). Below, every active reminder: how many times a day, at what times, how long the course runs. Empty state: one message and «Додати нагадування». |
 | Scanner | J2, J5 | new | Camera, EAN-13 and DataMatrix, «Ввести вручну». A mode for scanning many packs in a row. |
@@ -31,12 +30,13 @@ Collected from `docs/journeys.md`. **Figma** points to the exported frame in
 | Shopping list | J3–J5 | new | Local list; Rx items marked «потрібен рецепт». |
 | Cabinets | J5 | 021, 022 · keep | List of cabinets with counts, «Додати аптечку». |
 | Settings | — | 020, 032 · redo | Language, notifications (expiry warning days, missed-dose repeat), account (sign in, delete account), about. Drop «локальне зберігання». |
+| First-time hints | J1–J3 | new | Short hints the first time a screen opens (scanner, Today, medicine, cabinet switcher…): one line next to what it explains, gone after a tap or the first use, never shown again. Which screens get one is still to decide. |
 
 ## For shared cabinets
 
 | Screen | Journeys | Figma | What it does / what changes |
 |---|---|---|---|
-| Sign in | J5, J7 | 041, 042 · redo | One screen: Apple, Google, phone. Shown only when sharing. |
+| Sign in | J5, J7 | 041, 042 · redo | One screen: Apple, Google, phone. Optional, «Зберегти доступ на новому телефоні»: from Settings, or offered once after joining or inviting. Sharing works without it. |
 | Phone + code | J5, J7 | 054–057 · redo | Code submits itself after 6 digits; resend is a timer + link. |
 | Members | J5 | 023 · redo | Roles; remove behind a swipe or «⋮», not a red bin on every row. |
 | Invite | J5 | new | One link that contains the code; share sheet; code shown too. |
@@ -55,6 +55,9 @@ confirmation, push notifications (dose with actions, expiry digest, low stock).
 - «Створити нову аптечку» with the «Особиста / Сімейна» type and the progress
   bar (045, 048–050).
 - Categories step in onboarding (051–053) and «Додати приклади ліків».
+- Quick fill (popular-medicines checklist) and expiry for the picked ones in
+  onboarding (2026-10-22): too much to choose at once; Home with first steps
+  instead.
 - «Дії з ліками» accordions (034, 059).
 - Notifications screen (030, 031): its contents go to Home «Потребує уваги» and
   to push notifications.

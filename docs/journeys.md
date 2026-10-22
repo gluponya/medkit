@@ -22,21 +22,27 @@ one in the car, one at the dacha, and her parents' cabinet she checks on visits.
 **Who:** just installed the app. **Trigger:** wants to stop finding expired
 pills when she has a headache. **Goal:** see her home cabinet in the app.
 
-1. Opens the app → `[Welcome]` one line about the app, «Почати» and a quiet
-   «У мене є код запрошення».
+1. Opens the app → `[Welcome]` the mark, the name and one line, «Почати» and
+   a secondary «У мене є запрошення». No account: the phone signs in
+   anonymously in the background.
 2. «Почати» → `[Where is the cabinet]` Дім / Машина / Дача / Батьки / Інше.
-   Picks «Дім». The name and mode (`with_intake`) are set from it.
-3. → `[Quick fill]` popular medicines as a checklist, plus «Сканувати» and
-   «Знайти». She ticks the ones she has.
-4. For each ticked medicine the app needs an expiry date → `[Expiry for picked]`
-   a compact list: name + month/year picker. «Не знаю» is allowed and marks the
-   pack «перевірити термін».
-5. → `[Home]` with her medicines. Expired ones are already on top.
+   The picked tile opens: a name prefilled from the place («Інше» starts empty,
+   focused, keyboard up) and an icon, preset from the place, with eleven
+   others to pick from. Mode comes from the place (Дім: `with_intake`).
+   «Створити аптечку».
+3. → `[Home]` empty, for the first visit: a «Перші кроки» card. Step 1 «Додати
+   ліки, що є вдома»: «Сканувати упаковку», «Знайти за назвою», «Пізніше».
+   Step 2 (only `with_intake`) «Налаштувати нагадування»: «Додати
+   нагадування», «Пізніше». Nothing here is required.
+4. A done step gets a tick, a skipped one shows «Відкладено» and opens again on a
+   tap. When every step is done or skipped the card is gone for good; an empty
+   cabinet then shows the plain empty state with the same two ways to add.
 
-**Friction:** a long setup before any value (the Figma flow had 8 screens);
-asking for an account; asking for categories; adding sample medicines she does
-not have. **Done when:** she sees her real medicines with their status. Target:
-under 2 minutes, no account, no keyboard if she picks from the list.
+**Friction:** a long setup before any value (the Figma flow had 8 screens;
+a first draft with a popular-medicines checklist and an expiry date for each
+was too much to choose at once, 2026-10-22); asking for an account; asking
+for categories; adding sample medicines she does not have. **Done when:** she
+is on Home in under 30 seconds, and the first medicine is one tap away.
 
 ## J2. Add a medicine
 
@@ -106,8 +112,7 @@ what to bring next time.
    not in the app yet (J2).
 4. Adds what is missing to the shopping list.
 5. Optional: invites a sibling who also helps the parents → `[Members]` →
-   «Запросити» → here the app asks to sign in (Apple / Google / phone) →
-   `[Invite]` link with the code.
+   «Запросити» → `[Invite]` link with the code. No account needed.
 
 **Friction:** on the spot, fast scanning of many packs in a row matters more
 than details; one hand, the box in the other. **Done when:** no expired packs,
@@ -130,8 +135,9 @@ not expired, in this cabinet or another.
 **Trigger:** her mother sent an invite link. **Goal:** see that cabinet.
 
 1. Link opens the app (or the store, then the app) → `[Join]` cabinet name and
-   who invited → «Приєднатися» → sign in → the cabinet appears in the switcher.
-2. Without the link: `[Welcome]` → «У мене є код запрошення» → code field.
+   who invited → «Приєднатися» → the cabinet appears in the switcher. No
+   account needed; once, a quiet offer «Зберегти доступ на новому телефоні».
+2. Without the link: `[Welcome]` → «У мене є запрошення» → code field.
 
 **Friction:** an expired code needs a clear message and «Попросити новий код».
 **Done when:** the shared cabinet is in her switcher.
