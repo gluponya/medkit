@@ -15,6 +15,7 @@ import {
 } from '@/data/medicines';
 import { getRegisterEntry } from '@/data/register';
 import { useReminder, type Reminder } from '@/data/reminders';
+import { buyNew, useInShopping } from '@/data/shopping';
 import { CATEGORIES, type Category } from '@/domain/categories';
 import { daysBetween, expiryMonth, expiryStatus, localDay } from '@/domain/expiry';
 import { stockOf } from '@/domain/stock';
@@ -38,6 +39,7 @@ export default function MedicineScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const medicine = useMedicine(id);
   const packs = usePacks(id);
+  const inShopping = useInShopping(id);
   const categories = useMedicineCategories(id);
   const reminder = useReminder(id) ?? undefined;
   const cabinet = useCabinets()?.find((c) => c.id === medicine?.cabinetId);
@@ -214,7 +216,14 @@ export default function MedicineScreen() {
                         <Button label={t('medicine.dispose')} icon="trash" variant="outline" height={44} onPress={() => void disposePack(p.id)} />
                       </View>
                       <View style={styles.fill}>
-                        <Button label={t('medicine.buyNew')} icon="shopping-cart-plus" variant="secondary" height={44} onPress={soon} />
+                        <Button
+                          label={inShopping ? t('medicine.inShopping') : t('medicine.buyNew')}
+                          icon={inShopping ? 'check' : 'shopping-cart-plus'}
+                          variant="secondary"
+                          height={44}
+                          disabled={inShopping}
+                          onPress={() => void buyNew(medicine)}
+                        />
                       </View>
                     </View>
                   </View>

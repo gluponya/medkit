@@ -22,6 +22,20 @@
       "when": 1792833974625,
       "tag": "0002_reminders_and_intakes",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792836494772,
+      "tag": "0003_shopping_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792838058449,
+      "tag": "0004_shopping_dismissed",
+      "breakpoints": true
     }
   ]
 }

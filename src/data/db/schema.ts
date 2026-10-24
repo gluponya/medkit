@@ -145,3 +145,24 @@ export const intakes = sqliteTable(
   },
   (t) => [index('intakes_medicine').on(t.medicineId)],
 );
+
+/**
+ * A shopping line that cannot be derived from packs (docs/model.md, "Shopping
+ * list"): added by hand, «Купити нову», or a derived line ticked as bought.
+ */
+export const shoppingItems = sqliteTable(
+  'shopping_items',
+  {
+    id: text('id').primaryKey(),
+    cabinetId: text('cabinet_id')
+      .notNull()
+      .references(() => cabinets.id, { onDelete: 'cascade' }),
+    medicineId: text('medicine_id').references(() => medicines.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    boughtAt: text('bought_at'),
+    /** × on a medicine's line: off the list until a new pack of it arrives. */
+    dismissedAt: text('dismissed_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('shopping_items_cabinet').on(t.cabinetId)],
+);

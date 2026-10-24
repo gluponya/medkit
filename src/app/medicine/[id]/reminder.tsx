@@ -140,7 +140,7 @@ function ReminderForm({ medicine, saved }: { medicine: Medicine; saved: Reminder
             <Card
               key={n}
               title={t('reminder.timesADay', { count: n })}
-              text={PRESET_TIMES[n].join(', ')}
+              text={(pick === n ? [...times].sort() : PRESET_TIMES[n]).join(', ')}
               picked={pick === n}
               onPress={() => choose(n)}
             />
@@ -177,7 +177,7 @@ function ReminderForm({ medicine, saved }: { medicine: Medicine; saved: Reminder
                 <Text style={[type.bodyMedium, styles.rowLabel]}>{t('reminder.time')}</Text>
                 <View style={styles.rowEnd}>
                   {times.map((time, i) => (
-                    <Chip key={time} label={time} big onPress={() => setEditing(i)} />
+                    <Chip key={time} label={time} big accent onPress={() => setEditing(i)} />
                   ))}
                   <Round icon="plus" label={t('reminder.addTime')} onPress={() => setEditing('new')} />
                 </View>
@@ -288,11 +288,14 @@ function Chip({
   label,
   picked = false,
   big = false,
+  accent = false,
   onPress,
 }: {
   label: string;
   picked?: boolean;
   big?: boolean;
+  /** Blue text: a value to tap and change, like a time. */
+  accent?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -302,7 +305,7 @@ function Chip({
       onPress={onPress}
       style={[styles.chip, big && styles.chipBig, picked && styles.chipPicked]}
     >
-      <Text style={[big ? type.sectionTitle : type.bodyMedium, big && styles.chipBigText, picked && styles.white]}>
+      <Text style={[big ? type.sectionTitle : type.bodyMedium, big && styles.chipBigText, accent && styles.primary, picked && styles.white]}>
         {label}
       </Text>
     </Pressable>

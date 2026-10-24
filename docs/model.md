@@ -111,6 +111,39 @@ next-dose card says «Нагадаю о 13:15». It can be snoozed again. A dose
 taken by the next dose of the same medicine (or by the end of the day) is
 recorded as `skipped` and shows as missed.
 
+### Shopping list
+
+One list on the phone over all cabinets; each line says which cabinet it is
+for. Not shared with other members yet.
+
+Most lines are derived, never stored: a medicine is on the list when it has
+nothing good left to take.
+
+| Reason | Rule | Shown as |
+|---|---|---|
+| Протерміновано | it has active packs and all of them are expired | red «Протерміновано» |
+| Закінчилось | no active packs, and at least one was used up (not disposed) | amber «Закінчилось» |
+| Мало | counted stock of its unexpired packs `<= low_stock_threshold` | amber «Залишилось 4 шт» |
+
+A stored `ShoppingItem` is kept only for what cannot be derived:
+
+| Field | Notes |
+|---|---|
+| cabinet | Where the bought pack goes. |
+| medicine | Optional. Set by «Купити нову» on a pack and by ticking a derived line. |
+| name | For a line added by hand («Пластир»); copied from the medicine otherwise. |
+| bought_at | Set when ticked; the line moves to «Додати в аптечку». Unticking clears it; a ticked derived line is then deleted. |
+| dismissed_at | Set by × on a medicine's line: it stays off the list until a new pack of it is added. «Купити нову» clears it. |
+
+A line is done, and its row deleted, once the cabinet gets what was bought:
+for a line with a medicine, a pack of it added after the row was made; for a
+line by hand, a medicine of the same name added after it. A ticked line stays
+until then or until it is crossed out; × on a line by hand deletes its row.
+
+Ticking a line schedules one notification to add the pack, two hours later or
+at 10:00 the next morning if that falls between 21:00 and 9:00. It is cancelled
+when the line is unticked, crossed out or done.
+
 ### Person and Membership (shared cabinets only)
 
 Sharing needs no account (decided 2026-10-22): the anonymous user from the
