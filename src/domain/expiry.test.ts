@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { addDays, expiryFromMonth, expiryMonth, expiryStatus, worstStatus } from './expiry.ts';
+import { addDays, expiryFromMonth, expiryMonth, expiryStatus, monthsLeft, worstStatus } from './expiry.ts';
 
 test('a printed month expires on its last day', () => {
   assert.equal(expiryFromMonth(2027, 3), '2027-03-31');
@@ -34,4 +34,11 @@ test('a medicine shows its worst pack', () => {
   assert.equal(worstStatus([]), 'good');
   assert.equal(worstStatus(['good', 'expiring']), 'expiring');
   assert.equal(worstStatus(['expiring', 'expired', 'good']), 'expired');
+});
+
+test('months are counted from this month', () => {
+  assert.equal(monthsLeft('2026-10-24', 2027, 3), 5);
+  assert.equal(monthsLeft('2026-10-24', 2026, 10), 0);
+  assert.equal(monthsLeft('2026-10-24', 2026, 9), -1);
+  assert.equal(monthsLeft('2026-10-24', 2028, 3), 17);
 });

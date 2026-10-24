@@ -91,3 +91,57 @@ export const medicineCategories = sqliteTable(
     index('medicine_categories_category').on(t.category),
   ],
 );
+
+/** How often a reminder fires (docs/model.md, "Reminder"). */
+export type ReminderSchedule = 'daily' | 'days_of_week' | 'as_needed';
+
+/** One dose time of a reminder: «08:00», 1 tablet. */
+export type DoseTime = { time: string; dose: number };
+
+/**
+ * An intake reminder. It belongs to a person, not the cabinet; there is one
+ * person on the phone until shared cabinets come, so no person column yet.
+ */
+export const reminders = sqliteTable(
+  'reminders',
+  {
+    id: text('id').primaryKey(),
+    medicineId: text('medicine_id')
+      .notNull()
+      .references(() => medicines.id, { onDelete: 'cascade' }),
+    schedule: text('schedule').$type<ReminderSchedule>().notNull(),
+    /** Empty for `as_needed`. */
+    times: text('times', { mode: 'json' }).$type<DoseTime[]>().notNull(),
+    /** 1 is Monday … 7 is Sunday; only for `days_of_week`. */
+    daysOfWeek: text('days_of_week', { mode: 'json' }).$type<number[]>(),
+    /** The first day of the course. */
+    start: text('start').notNull(),
+    /** Null is an ongoing course. */
+    days: integer('days'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('reminders_medicine').on(t.medicineId)],
+);
+
+export type IntakeStatus = 'taken' | 'skipped';
+
+/** One dose taken or skipped. A taken dose came out of `package_id`. */
+export const intakes = sqliteTable(
+  'intakes',
+  {
+    id: text('id').primaryKey(),
+    medicineId: text('medicine_id')
+      .notNull()
+      .references(() => medicines.id, { onDelete: 'cascade' }),
+    /** Null for a dose taken without a reminder. */
+    reminderId: text('reminder_id').references(() => reminders.id, { onDelete: 'set null' }),
+    packageId: text('package_id').references(() => packages.id, { onDelete: 'set null' }),
+    dose: integer('dose').notNull(),
+    status: text('status').$type<IntakeStatus>().notNull(),
+    /** The dose time it answers, `YYYY-MM-DDTHH:MM` local; null without a reminder. */
+    due: text('due'),
+    at: text('at').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('intakes_medicine').on(t.medicineId)],
+);

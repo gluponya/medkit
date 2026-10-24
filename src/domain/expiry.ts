@@ -59,3 +59,21 @@ export function worstStatus(statuses: readonly ExpiryStatus[]): ExpiryStatus {
 function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
+
+/**
+ * Whole months from this month to the printed one: «Ще 17 міс.». Zero is the
+ * current month, below zero the pack is already out of date.
+ */
+export function monthsLeft(today: string, year: number, month: number): number {
+  const [y, m] = today.split('-').map(Number);
+  return year * 12 + month - (y * 12 + m);
+}
+
+/** Whole days from one calendar day to another: «Термін: 17 днів». */
+export function daysBetween(from: string, to: string): number {
+  const utc = (day: string) => {
+    const [year, month, date] = day.split('-').map(Number);
+    return Date.UTC(year, month - 1, date);
+  };
+  return Math.round((utc(to) - utc(from)) / 86_400_000);
+}

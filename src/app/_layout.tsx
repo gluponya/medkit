@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { db } from '@/data/db/client';
 import migrations from '@/data/db/migrations/migrations';
+import { rescheduleDoses } from '@/data/notifications';
 import { useSession } from '@/data/session';
 import { useI18n, useT } from '@/i18n';
 import { colors, spacing } from '@/ui/theme';
@@ -40,6 +41,11 @@ export default function RootLayout() {
   useEffect(() => {
     if (ready) void SplashScreen.hideAsync();
   }, [ready]);
+
+  // Scheduled doses run only a week ahead: lay them out again on every start.
+  useEffect(() => {
+    if (success) void rescheduleDoses();
+  }, [success]);
 
   if (!ready) return null;
 
