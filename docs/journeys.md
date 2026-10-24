@@ -61,7 +61,8 @@ cabinet with its expiry date.
 3. On `[Confirm medicine]` she sets the expiry (month/year) and, optionally,
    quantity and tags. If the medicine is already in the cabinet, the app offers
    «Додати як нову упаковку».
-4. Saves → back where she came from, with a short «Додано» toast.
+4. Saves → back where she came from, with a short «Додано» toast and
+   «Скасувати» in it for a few seconds (removes what was just added).
 
 **Friction:** camera permission refused; bad light; same medicine added twice;
 typing a full date when the pack only shows month/year. **Done when:** the
@@ -158,6 +159,31 @@ about alcohol.
 **Friction:** intakes were not marked → the note gives the general time only
 («Виводиться приблизно за 2 доби»), not a date; the substance is not covered
 yet → no note. **Done when:** she knows the date and the instruction's words.
+
+## J9. Picked the wrong medicine
+
+**Trigger:** she added «Нурофен» a week ago, with an expiry and a reminder;
+now she sees the box says «Нурофен для дітей». **Goal:** the app shows the
+medicine she really has, without typing everything again.
+
+1. `[Medicine]` «Нурофен» → «⋯» → «Змінити ліки».
+2. → `[Register search]` with the old name in the field, so «для дітей» is a
+   few letters away. She taps «Нурофен для дітей». Not in the Register →
+   «Ввести вручну»: name and form only.
+3. → `[Change medicine]` old and new side by side, what changes (form,
+   strength) and what stays («Упаковки і терміни залишаться»). «Змінити».
+4. The form changed (tablets → suspension), so the numbers are asked again,
+   one question per screen: quantity of each pack (in ml, or «Не рахувати,
+   просто є»), then the dose for each reminder («Скільки мл за раз?»).
+5. Already has «Нурофен для дітей» in this cabinet → step 3 offers «Об’єднати»
+   instead: the packs and reminders move there.
+6. → `[Medicine]` «Нурофен для дітей» with the same packs, a «Змінено» toast.
+
+**Friction:** a reminder that keeps firing in the old unit (it waits for the
+new dose instead); a barcode that keeps mapping to the wrong medicine (her
+confirmation moves to the new pick); deleting and adding again, which loses
+the expiry and the history. **Done when:** the medicine, its packs and its
+reminders are right, and nothing was typed twice.
 
 ---
 

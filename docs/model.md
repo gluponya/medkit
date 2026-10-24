@@ -85,6 +85,7 @@ One physical pack. Two packs of the same medicine can have different expiry date
 | quantity | Optional. In the form's unit (pieces for tablets, ml for liquids). Empty = not counted, the pack is just "there". |
 | opened_at | Never asked for tablets: set automatically when a pack is added with less than its full count (the date it was added), or on the first intake from it. Later, for drops and syrups that expire sooner once opened, the form asks for it, since it changes the expiry. |
 | status | `active`, `used_up`, `disposed`. Used-up and disposed packs stay for history but leave the list. |
+| gtin | Optional. The barcode the pack was scanned from, so «Змінити ліки» can correct `barcode_map` (see "Changing what a medicine is"). |
 
 ### Reminder (only in `with_intake` cabinets)
 
@@ -128,6 +129,52 @@ days and for any number of people. New members join as `member`.
 | owner | Everything, including deleting the cabinet. |
 | admin | Edit medicines and packs, invite people. |
 | member | See the cabinet, change quantities, mark their own intakes. |
+
+## Changing what a medicine is
+
+Asked by the owner on 2026-10-24: she added «Нурофен», and it turned out she
+has «Нурофен для дітей». These are different Register entries: another form
+(suspension, not tablets), another strength (100 мг/5 мл), maybe other tags
+and another instruction. Renaming would leave the old Register link, the form
+and a reminder dose in tablets.
+
+So a medicine has two kinds of change:
+
+- **Details** (`[Medicine details]`): a typo in a hand-typed name, the
+  manufacturer, tags, the threshold, Rx. The Register link stays.
+- **«Змінити ліки»** (in «⋯»): the medicine is picked again, from the same
+  Register search as when adding, or typed by hand (name and form). It is the
+  same physical box; only the pick was wrong.
+
+| Kept | Taken from the new pick |
+|---|---|
+| Packs: expiry, status, opened_at | name, inn, form, strength, manufacturer, rx, register_entry |
+| Intakes (they happened) | Tags from the ATC table; own categories the person added stay |
+| Reminders: times, schedule, course | SubstanceFacts follow the new inn by themselves |
+
+When the stock unit changes (tablets → ml), numbers in the old unit mean
+nothing in the new one, and the app never converts them:
+
+- each pack's quantity is asked again, as in adding by hand («Не рахувати,
+  просто є» allowed);
+- `low_stock_threshold` is cleared;
+- each reminder's dose is asked again, and the reminder sends no push until
+  it is answered.
+
+If the new pick is already in this cabinet, the app offers to join them: the
+packs, reminders and intakes move to the existing medicine and this one is
+deleted. The dose question still applies when the units differ.
+
+If a pack was added by barcode (`gtin` set), the pair in `barcode_map` was
+wrong too: the change withdraws this phone's confirmation of the old pair and
+confirms the new one. A pair nobody confirms any more is not trusted.
+
+Only those who can edit medicines (owner, admin) see «Змінити ліки».
+
+**Right after adding**, the «Додано» toast has «Скасувати» for a few seconds:
+it removes the pack just added, and the medicine too if it was new. A wrong
+pick noticed later is fixed by «Змінити ліки», not by deleting and adding
+again, which loses the expiry, the quantity, the reminders and the history.
 
 ## Derived statuses
 
