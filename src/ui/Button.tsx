@@ -1,0 +1,69 @@
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { Icon, type IconName } from './Icon';
+import { colors, radius, spacing } from './theme';
+import { type } from './typography';
+
+type Variant = 'primary' | 'secondary' | 'outline';
+
+const VARIANTS: Record<Variant, { bg: string; fg: string; border?: string }> = {
+  primary: { bg: colors.primary, fg: colors.white },
+  secondary: { bg: colors.primarySoft, fg: colors.primary },
+  outline: { bg: colors.surface, fg: colors.ink, border: colors.line },
+};
+
+/**
+ * The design's buttons: filled primary, soft secondary, outlined plain. A
+ * disabled button has no border and muted text, so it does not look tappable.
+ */
+export function Button({
+  label,
+  onPress,
+  variant = 'primary',
+  icon,
+  disabled = false,
+  height = 52,
+}: {
+  label: string;
+  onPress: () => void;
+  variant?: Variant;
+  icon?: IconName;
+  disabled?: boolean;
+  height?: number;
+}) {
+  const look = VARIANTS[variant];
+  const fg = disabled ? colors.inkMuted : look.fg;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.button,
+        {
+          height,
+          backgroundColor: disabled ? colors.surfaceSoft : look.bg,
+          borderColor: disabled ? 'transparent' : (look.border ?? 'transparent'),
+          opacity: pressed ? 0.85 : 1,
+        },
+      ]}
+    >
+      <View style={styles.row}>
+        {icon ? <Icon name={icon} size={20} color={fg} /> : null}
+        <Text style={[type.button, { color: fg }]}>{label}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  button: {
+    borderRadius: radius.button,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+});
