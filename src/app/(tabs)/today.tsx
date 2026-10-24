@@ -18,6 +18,8 @@ import { cardShadow, colors, radius, spacing } from '@/ui/theme';
 import { type } from '@/ui/typography';
 
 const soon = () => router.push('/soon');
+// Both «Додати нагадування» and «+ Додати» ask which medicine first.
+const addReminder = () => router.push({ pathname: '/pick-medicine', params: { from: 'today' } });
 
 /** How far «Пізніше» puts a dose off. */
 const SNOOZE_MINUTES = 30;
@@ -120,7 +122,11 @@ export default function Today() {
               <Icon name="alarm" size={40} color={colors.primary} />
             </View>
             <Text style={[type.sectionTitle, styles.center]}>{t('today.empty')}</Text>
-            <Button label={t('today.addReminder')} icon="plus" onPress={soon} />
+            <Button
+              label={t('today.addReminder')}
+              icon="plus"
+              onPress={addReminder}
+            />
           </View>
         ) : (
           <View style={styles.doses}>
@@ -196,7 +202,7 @@ export default function Today() {
           <>
             <View style={styles.titleRow}>
               <Text style={type.sectionTitle}>{t('today.all')}</Text>
-              <Pressable accessibilityRole="button" onPress={soon} style={styles.add}>
+              <Pressable accessibilityRole="button" onPress={addReminder} style={styles.add}>
                 <Icon name="plus" size={20} color={colors.primary} />
                 <Text style={[type.button, styles.primary]}>{t('today.add')}</Text>
               </Pressable>

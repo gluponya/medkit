@@ -62,3 +62,28 @@ test('uncounted packs never read as low stock', () => {
   assert.equal(o.rest[0].stock, null);
   assert.equal(o.attention.length, 0);
 });
+
+test('an unknown expiry needs attention after low stock and counts its stock', () => {
+  const o = overview(
+    [
+      row({ medicineId: 'Цитрамон', expires: null, expiryUnknown: true, quantity: 6 }),
+      row({ medicineId: 'Сорбіфер', quantity: 4, lowStockThreshold: 10 }),
+      row({ medicineId: 'Нурофен', expires: '2028-01-31' }),
+      row({ medicineId: 'Нурофен', expires: null, expiryUnknown: true }),
+      row({ medicineId: 'Аспірин', expires: null }),
+    ],
+    '2026-10-24',
+    30,
+  );
+  assert.deepEqual(
+    o.attention.map((m) => [m.name, m.reason]),
+    [
+      ['Сорбіфер', 'low'],
+      ['Цитрамон', 'unknown'],
+      ['Нурофен', 'unknown'],
+    ],
+  );
+  assert.equal(o.attention.find((m) => m.name === 'Цитрамон')?.stock, 6);
+  // A medicine without any pack is not «unknown».
+  assert.deepEqual(o.rest.map((m) => [m.name, m.status]), [['Аспірин', 'good']]);
+});

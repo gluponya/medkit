@@ -27,7 +27,8 @@ export interface ShopMedicine {
 
 export interface ShopPack {
   medicineId: string;
-  expires: string;
+  /** Null: «Не знаю»; such a pack is not expired and puts nothing on the list. */
+  expires: string | null;
   quantity: number | null;
   status: 'active' | 'used_up' | 'disposed';
   createdAt: string;
@@ -73,7 +74,7 @@ export function missing(
 ): { reason: Exclude<ShoppingReason, 'manual'>; stock: number | null } | null {
   const active = packs.filter((p) => p.status === 'active');
   if (active.length === 0) return packs.some((p) => p.status === 'used_up') ? { reason: 'out', stock: 0 } : null;
-  const good = active.filter((p) => p.expires >= today);
+  const good = active.filter((p) => p.expires === null || p.expires >= today);
   if (good.length === 0) return { reason: 'expired', stock: null };
   const counted = good.filter((p) => p.quantity !== null);
   if (counted.length === 0 || medicine.lowStockThreshold === null) return null;

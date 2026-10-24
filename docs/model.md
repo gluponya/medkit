@@ -81,7 +81,7 @@ One physical pack. Two packs of the same medicine can have different expiry date
 
 | Field | Notes |
 |---|---|
-| expires | Required. Month and year, as printed on packs; stored as the last day of that month. Further away than the Register's shelf life from today → «Точно?», a likely typo. |
+| expires | Month and year, as printed on packs; stored as the last day of that month. Further away than the Register's shelf life from today → «Точно?», a likely typo. Empty only when she picks «Не знаю» (the box with the date is gone, a loose blister): the pack is then «Термін невідомий». Always asked for; there is no plain «Пропустити». |
 | quantity | Optional. In the form's unit (pieces for tablets, ml for liquids). Empty = not counted, the pack is just "there". |
 | opened_at | Never asked for tablets: set automatically when a pack is added with less than its full count (the date it was added), or on the first intake from it. Later, for drops and syrups that expire sooner once opened, the form asks for it, since it changes the expiry. |
 | status | `active`, `used_up`, `disposed`. Used-up and disposed packs stay for history but leave the list. |
@@ -103,7 +103,8 @@ see it.
 
 One event: a dose taken, skipped, or (for `as_needed`) taken without a reminder.
 `taken` subtracts `dose` from a package of that medicine: an opened one first,
-then the one that expires soonest.
+then one with an unknown expiry (likely the oldest), then the one that expires
+soonest.
 
 A snooze («Пізніше» in the app, «Відкласти на 15 хв» in the push) is not an
 Intake: the dose stays open, the push comes again 15 minutes later, and the
@@ -205,7 +206,8 @@ confirms the new one. A pair nobody confirms any more is not trusted.
 Only those who can edit medicines (owner, admin) see «Змінити ліки».
 
 **Right after adding**, the «Додано» toast has «Скасувати» for a few seconds:
-it removes the pack just added, and the medicine too if it was new. A wrong
+it removes the pack just added, and the medicine too if it was new (then its
+screen closes and she is back where adding started). A wrong
 pick noticed later is fixed by «Змінити ліки», not by deleting and adding
 again, which loses the expiry, the quantity, the reminders and the history.
 
@@ -218,7 +220,15 @@ worst of its active packs.
 |---|---|---|
 | Протерміновано | `expires < today` | red |
 | Закінчується термін | `expires <= today + expiry_warning_days` | amber |
+| Термін невідомий | `expires` is empty | grey, with «Вказати термін» |
 | Добрий | otherwise | green / neutral |
+
+Worst first: Протерміновано, Закінчується термін, Термін невідомий, Добрий. An
+unknown expiry is not counted as expired and puts nothing on the shopping list;
+it sits in «Потребує уваги» on Home until a date is set or the pack is gone.
+Once such a pack has been in the cabinet longer than the Register's shelf life,
+its line reads «Термін невідомий, додано 3 роки тому», so she can decide to
+throw it out.
 
 Stock status is separate and only exists when quantity is counted:
 

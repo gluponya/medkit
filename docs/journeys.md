@@ -58,15 +58,22 @@ cabinet with its expiry date.
       searches herself → `[Confirm medicine]`. Next time the code is known.
    c) **Not in the Register** (supplements, foreign pack) → `[Medicine form]`
       by hand: name and expiry required, the rest optional.
-3. On `[Confirm medicine]` she sets the expiry (month/year) and, optionally,
-   quantity and tags. If the medicine is already in the cabinet, the app offers
+3. On `[Confirm medicine]` she sets the expiry (month/year), or picks «Не знаю»
+   when the date went with the box, and, optionally, quantity and tags. If the medicine is already in the cabinet, the app offers
    «Додати як нову упаковку».
-4. Saves → back where she came from, with a short «Додано» toast and
-   «Скасувати» in it for a few seconds (removes what was just added).
+4. Saves → `[Medicine]` of what she just added (an existing medicine: the new
+   pack highlighted), with a short «Додано» toast and «Скасувати» in it for a
+   few seconds (removes what was just added). «Нагадування» is one tap away
+   there, so adding never asks about reminders. Until she leaves it, the
+   footer there is «Додати ще» and «Готово» (→ Home), not «Прийняти». In the «Кілька поспіль» mode
+   she stays on `[Scanner]` instead, a toast after each pack.
+5. Adding started from «Додати нагадування» (see J3) → `[New reminder]` for
+   that medicine instead of `[Medicine]`; saving it ends on `[Medicine]`.
 
 **Friction:** camera permission refused; bad light; same medicine added twice;
-typing a full date when the pack only shows month/year. **Done when:** the
-pack is in the list with an expiry status.
+typing a full date when the pack only shows month/year; a loose blister with no
+date. **Done when:** the pack is in the list with an expiry status (or
+«Термін невідомий»).
 
 ## J3. Daily intake (home cabinet only)
 
@@ -82,6 +89,14 @@ think about stock.
    `[Today]`.
 
 **Also:** opening the app, `[Home]` shows the next dose with a «Прийняти» button.
+
+**Setting it up:** «Додати нагадування» (on `[Today]` or in «Перші кроки») →
+`[Pick a medicine]` «Що нагадати прийняти?»: the cabinet's medicines, and «Додати
+нові ліки» for one not added yet. A medicine → `[New reminder]`. «Додати нові
+ліки» → the usual J2 adding, which then ends on `[New reminder]` for it, not on
+`[Medicine]`: she came for the reminder, so the pills are not added twice and
+the reminder is not forgotten. From `[Medicine]`, the «Нагадування» row opens
+`[New reminder]` directly.
 
 **Friction:** stock was never counted (quantity empty) → no low-stock warning,
 which is fine; the person took it but forgot to tap → can mark it later in

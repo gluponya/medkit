@@ -8,6 +8,7 @@ import {
   changeStock,
   disposePack,
   takeDose,
+  undoAdd,
   useMedicine,
   useMedicineCategories,
   usePacks,
@@ -17,14 +18,16 @@ import { getRegisterEntry } from '@/data/register';
 import { useReminder, type Reminder } from '@/data/reminders';
 import { buyNew, useInShopping } from '@/data/shopping';
 import { CATEGORIES, type Category } from '@/domain/categories';
-import { daysBetween, expiryMonth, expiryStatus, localDay } from '@/domain/expiry';
+import { daysBetween, expiryMonth, expiryStatus, localDay, unknownForYears } from '@/domain/expiry';
 import { stockOf } from '@/domain/stock';
 import { CATEGORY_NAME, FORM_ICON, FORM_NAME, UNIT } from '@/features/add/labels';
 import { useT } from '@/i18n';
 import { BackBar } from '@/ui/BackBar';
 import { Button } from '@/ui/Button';
+import { FitTitle } from '@/ui/FitTitle';
 import { Icon, type IconName } from '@/ui/Icon';
 import { cardShadow, colors, radius, spacing } from '@/ui/theme';
+import { Toast } from '@/ui/Toast';
 import { type } from '@/ui/typography';
 
 const soon = () => router.push('/soon');
@@ -36,7 +39,11 @@ const soon = () => router.push('/soon');
  */
 export default function MedicineScreen() {
   const t = useT();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // added: the pack an add just made, for the «Додано» toast (docs/journeys.md, J2).
+  const { id, added, isNew } = useLocalSearchParams<{ id: string; added?: string; isNew?: string }>();
+  const [justAdded, setJustAdded] = useState(added ? { packageId: added, isNew: isNew === '1' } : null);
+  // Opened by an add: until the screen is left, the footer offers what comes next, not «Прийняти».
+  const [afterAdd, setAfterAdd] = useState(Boolean(added));
   const medicine = useMedicine(id);
   const packs = usePacks(id);
   const inShopping = useInShopping(id);
@@ -46,13 +53,16 @@ export default function MedicineScreen() {
   const [open, setOpen] = useState(0);
   const [taken, setTaken] = useState(false);
   const [leaflet, setLeaflet] = useState<string | null>(null);
+  const [shelfLife, setShelfLife] = useState<number | null>(null);
 
   const registerId = medicine?.registerId ?? null;
   useEffect(() => {
     if (!registerId) return;
     let live = true;
     void getRegisterEntry(registerId).then((entry) => {
-      if (live) setLeaflet(entry?.instructionUrl ?? null);
+      if (!live) return;
+      setLeaflet(entry?.instructionUrl ?? null);
+      setShelfLife(entry?.shelfLifeMonths ?? null);
     });
     return () => {
       live = false;
@@ -99,12 +109,17 @@ export default function MedicineScreen() {
       .filter(Boolean)
       .join(', ');
 
-  const until = (expires: string) => {
-    const { year, month } = expiryMonth(expires);
+  const until = (p: Package) => {
+    if (p.expires === null) {
+      const years = unknownForYears(p.createdAt.slice(0, 10), today, shelfLife);
+      return years === null ? t('expiry.unknown') : t('expiry.unknownForYears', { count: years });
+    }
+    const { year, month } = expiryMonth(p.expires);
     return t('home.until', { date: `${String(month).padStart(2, '0')}.${year}` });
   };
 
-  const badge = (expires: string) => {
+  const badge = (expires: string | null) => {
+    if (expires === null) return null;
     const status = expiryStatus(expires, today, cabinet?.expiryWarningDays ?? 30);
     if (status === 'good') return null;
     const tone = status === 'expired' ? colors.danger : colors.warning;
@@ -119,10 +134,31 @@ export default function MedicineScreen() {
     );
   };
 
+  const undo = async () => {
+    if (!justAdded) return;
+    setJustAdded(null);
+    setAfterAdd(false);
+    await undoAdd({ medicineId: medicine.id, ...justAdded });
+    if (justAdded.isNew) router.back();
+  };
+
   const take = async () => {
     await takeDose({ medicineId: medicine.id, dose, reminderId: reminder?.id ?? null });
     setTaken(true);
   };
+
+  // The card does not clip (it would lose its shadow), so the tint rounds its own outer corners.
+  const newPackStyle = (i: number) => [
+    styles.packNew,
+    i === 0 && styles.packNewFirst,
+    i === packs.length - 1 && styles.packNewLast,
+  ];
+
+  const newBadge = (
+    <View style={styles.newBadge}>
+      <Text style={[type.caption, styles.white]}>{t('medicine.newPack')}</Text>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -140,7 +176,7 @@ export default function MedicineScreen() {
             <Icon name={FORM_ICON[form]} size={30} color={colors.primary} />
           </View>
           <View style={styles.fill}>
-            <Text style={type.screenTitle}>{medicine.name}</Text>
+            <FitTitle>{medicine.name}</FitTitle>
             {subtitle ? <Text style={type.label}>{subtitle}</Text> : null}
           </View>
         </View>
@@ -205,12 +241,23 @@ export default function MedicineScreen() {
               <Fragment key={p.id}>
                 {i > 0 ? <View style={styles.divider} /> : null}
                 {i === open ? (
-                  <View style={styles.pack}>
+                  <View style={[styles.pack, p.id === justAdded?.packageId && newPackStyle(i)]}>
                     <View style={styles.packTitle}>
-                      <Text style={styles.packDate}>{until(p.expires)}</Text>
+                      <Text style={styles.packDate}>{until(p)}</Text>
                       {badge(p.expires)}
+                      {p.id === justAdded?.packageId ? newBadge : null}
                     </View>
                     <Text style={type.label}>{packLine(p, i === 0)}</Text>
+                    {p.expires === null ? (
+                      <View style={styles.packSet}>
+                        <Button
+                          label={t('expiry.set')}
+                          icon="calendar-check"
+                          height={44}
+                          onPress={() => router.push({ pathname: '/medicine/[id]/expiry', params: { id, pack: p.id } })}
+                        />
+                      </View>
+                    ) : null}
                     <View style={styles.packButtons}>
                       <View style={styles.fill}>
                         <Button label={t('medicine.dispose')} icon="trash" variant="outline" height={44} onPress={() => void disposePack(p.id)} />
@@ -228,11 +275,13 @@ export default function MedicineScreen() {
                     </View>
                   </View>
                 ) : (
-                  <Pressable accessibilityRole="button" onPress={() => setOpen(i)} style={[styles.pack, styles.packClosed]}>
+                  <Pressable accessibilityRole="button" onPress={() => setOpen(i)} style={[styles.pack, styles.packClosed, p.id === justAdded?.packageId && newPackStyle(i)]}
+                  >
                     <View style={styles.fill}>
                       <View style={styles.packTitle}>
-                        <Text style={styles.packDate}>{until(p.expires)}</Text>
+                        <Text style={styles.packDate}>{until(p)}</Text>
                         {badge(p.expires)}
+                        {p.id === justAdded?.packageId ? newBadge : null}
                       </View>
                       <Text style={type.label}>{packLine(p, i === 0)}</Text>
                     </View>
@@ -268,7 +317,32 @@ export default function MedicineScreen() {
         ) : null}
       </ScrollView>
 
-      {withIntake ? (
+      <View style={styles.bottom}>
+        {justAdded ? (
+          <Toast
+            text={justAdded.isNew ? t('medicine.addedMedicine') : t('medicine.addedPack')}
+            action={t('common.cancel')}
+            onAction={() => void undo()}
+            onHide={() => setJustAdded(null)}
+            bottom={spacing.md}
+          />
+        ) : null}
+      </View>
+      {afterAdd ? (
+        <View style={[styles.footer, styles.footerRow]}>
+          <View style={styles.fill}>
+            <Button
+              label={t('medicine.addMore')}
+              icon="plus"
+              variant="secondary"
+              onPress={() => router.push('/add/search')}
+            />
+          </View>
+          <View style={styles.fill}>
+            <Button label={t('common.done')} icon="check" onPress={() => router.dismissTo('/home')} />
+          </View>
+        </View>
+      ) : withIntake ? (
         <View style={styles.footer}>
           <Button
             label={taken ? t('medicine.taken') : t('medicine.take', { count: dose, unit })}
@@ -387,6 +461,18 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.line, marginLeft: spacing.lg },
   pack: { padding: spacing.lg, gap: spacing.xs },
   packClosed: { flexDirection: 'row', alignItems: 'center' },
+  packNew: { backgroundColor: colors.primarySoft },
+  packNewFirst: { borderTopLeftRadius: radius.card - 1, borderTopRightRadius: radius.card - 1 },
+  packNewLast: { borderBottomLeftRadius: radius.card - 1, borderBottomRightRadius: radius.card - 1 },
+  newBadge: {
+    height: 22,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+  },
+  white: { color: colors.white },
+  bottom: { zIndex: 10 },
   packTitle: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   packDate: { ...type.sectionTitle, fontSize: 18 },
   badge: {
@@ -398,6 +484,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   badgeDot: { width: 7, height: 7, borderRadius: 4 },
+  packSet: { marginTop: spacing.sm },
   packButtons: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   links: { marginTop: spacing.xxl },
   linkRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg },
@@ -409,4 +496,5 @@ const styles = StyleSheet.create({
     borderTopColor: colors.line,
     backgroundColor: colors.bg,
   },
+  footerRow: { flexDirection: 'row', gap: spacing.sm },
 });

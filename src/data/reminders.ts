@@ -1,5 +1,6 @@
 import { count, eq } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import { useMemo } from 'react';
 import { uuidv7 } from 'uuidv7';
 
 import type { ReminderPlan } from '@/domain/reminders';
@@ -30,6 +31,19 @@ export function useReminderCount(cabinetId: string | undefined): number {
     [cabinetId],
   );
   return data[0]?.n ?? 0;
+}
+
+/** The cabinet's medicines that have a reminder, for «Вже є нагадування». */
+export function useRemindedMedicines(cabinetId: string | undefined): Set<string> {
+  const { data } = useLiveQuery(
+    db
+      .select({ id: reminders.medicineId })
+      .from(reminders)
+      .innerJoin(medicines, eq(medicines.id, reminders.medicineId))
+      .where(eq(medicines.cabinetId, cabinetId ?? '')),
+    [cabinetId],
+  );
+  return useMemo(() => new Set(data.map((r) => r.id)), [data]);
 }
 
 /**

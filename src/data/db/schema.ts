@@ -55,8 +55,8 @@ export const packages = sqliteTable(
     medicineId: text('medicine_id')
       .notNull()
       .references(() => medicines.id, { onDelete: 'cascade' }),
-    /** The last day of the month printed on the pack. */
-    expires: text('expires').notNull(),
+    /** The last day of the month printed on the pack; null when she picked «Не знаю». */
+    expires: text('expires'),
     /** In the form's unit; null means the pack is not counted. */
     quantity: integer('quantity'),
     openedAt: text('opened_at'),

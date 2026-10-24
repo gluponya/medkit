@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { addDays, expiryFromMonth, expiryMonth, expiryStatus, monthsLeft, worstStatus } from './expiry.ts';
+import {
+  addDays,
+  expiryFromMonth,
+  expiryMonth,
+  expiryStatus,
+  monthsLeft,
+  unknownForYears,
+  worstStatus,
+} from './expiry.ts';
 
 test('a printed month expires on its last day', () => {
   assert.equal(expiryFromMonth(2027, 3), '2027-03-31');
@@ -28,12 +36,23 @@ test('status follows the warning window', () => {
   assert.equal(expiryStatus('2026-10-24', today, 30), 'expiring');
   assert.equal(expiryStatus('2026-11-23', today, 30), 'expiring');
   assert.equal(expiryStatus('2026-11-24', today, 30), 'good');
+  assert.equal(expiryStatus(null, today, 30), 'unknown');
 });
 
 test('a medicine shows its worst pack', () => {
   assert.equal(worstStatus([]), 'good');
   assert.equal(worstStatus(['good', 'expiring']), 'expiring');
   assert.equal(worstStatus(['expiring', 'expired', 'good']), 'expired');
+  assert.equal(worstStatus(['good', 'unknown']), 'unknown');
+  assert.equal(worstStatus(['unknown', 'expiring']), 'expiring');
+});
+
+test('an unknown expiry is flagged once past the shelf life', () => {
+  assert.equal(unknownForYears('2024-10-24', '2026-10-24', 36), null);
+  assert.equal(unknownForYears('2023-10-25', '2026-10-24', 36), null);
+  assert.equal(unknownForYears('2023-09-01', '2026-10-24', 36), 3);
+  assert.equal(unknownForYears('2025-01-01', '2026-10-24', 12), 1);
+  assert.equal(unknownForYears('2020-01-01', '2026-10-24', null), null);
 });
 
 test('months are counted from this month', () => {

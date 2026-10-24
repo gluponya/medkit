@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Icon, type IconName } from './Icon';
+import { PressScale } from './motion';
 import { colors, radius, spacing } from './theme';
 import { type } from './typography';
 
@@ -31,17 +32,16 @@ export function Tile({
 }) {
   const fg = picked || dashed ? colors.primary : colors.ink;
   return (
-    <Pressable
+    <PressScale
       accessibilityRole={role}
       accessibilityState={role === 'button' ? undefined : { checked: picked }}
       onPress={onPress}
-      style={({ pressed }) => [
+      style={[
         styles.tile,
         { minHeight: height },
         icon ? styles.withIcon : styles.centered,
         picked && styles.picked,
         dashed && styles.dashed,
-        pressed && styles.pressed,
       ]}
     >
       {icon ? <Icon name={icon} size={22} color={colors.primary} /> : null}
@@ -51,7 +51,7 @@ export function Tile({
           <Icon name="check" size={14} color={colors.white} strokeWidth={3} />
         </View>
       ) : null}
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -68,7 +68,6 @@ const styles = StyleSheet.create({
   withIcon: { gap: spacing.md, paddingHorizontal: spacing.lg - 2, paddingVertical: spacing.sm },
   picked: { backgroundColor: colors.primarySoft, borderColor: colors.primary, borderWidth: 2 },
   dashed: { backgroundColor: 'transparent', borderStyle: 'dashed', borderWidth: 1.5 },
-  pressed: { opacity: 0.85 },
   label: { ...type.bodyMedium, fontSize: 16, lineHeight: 21, textAlign: 'center' },
   fill: { flex: 1, textAlign: 'left' },
   check: {

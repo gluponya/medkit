@@ -31,7 +31,9 @@ export function MedicineList({
       ? t('home.expired')
       : m.reason === 'expiring'
         ? t('home.expiresIn', { count: m.daysLeft ?? 0 })
-        : t('home.lowStock', { count: m.stock ?? 0, unit: t(UNIT[m.form ?? 'other']) });
+        : m.reason === 'unknown'
+          ? t('expiry.unknown')
+          : t('home.lowStock', { count: m.stock ?? 0, unit: t(UNIT[m.form ?? 'other']) });
 
   const until = (expires: string | null) => {
     if (!expires) return '';
@@ -49,7 +51,8 @@ export function MedicineList({
           </View>
           <View style={styles.card}>
             {overview.attention.map((m, i) => {
-              const tone = m.reason === 'expired' ? colors.danger : colors.warning;
+              const tone =
+                m.reason === 'expired' ? colors.danger : m.reason === 'unknown' ? colors.inkMuted : colors.warning;
               return (
                 <Fragment key={m.id}>
                   {i > 0 ? <View style={styles.cardDivider} /> : null}

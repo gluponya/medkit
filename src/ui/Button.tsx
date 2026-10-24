@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Icon, type IconName } from './Icon';
+import { PressScale } from './motion';
 import { colors, radius, spacing } from './theme';
 import { type } from './typography';
 
@@ -34,18 +35,17 @@ export function Button({
   const look = VARIANTS[variant];
   const fg = disabled ? colors.inkMuted : look.fg;
   return (
-    <Pressable
+    <PressScale
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [
+      style={[
         styles.button,
         {
           height,
           backgroundColor: disabled ? colors.surfaceSoft : look.bg,
           borderColor: disabled ? 'transparent' : (look.border ?? 'transparent'),
-          opacity: pressed ? 0.85 : 1,
         },
       ]}
     >
@@ -53,7 +53,7 @@ export function Button({
         {icon ? <Icon name={icon} size={20} color={fg} /> : null}
         <Text style={[type.button, { color: fg }]}>{label}</Text>
       </View>
-    </Pressable>
+    </PressScale>
   );
 }
 

@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 import type { MedicineForm } from '@/domain/medicine';
-import { INSTRUCTION_BASE, searchQuery } from '@/domain/register';
+import { brandOf, distinctEntries, INSTRUCTION_BASE, searchQuery, searchText } from '@/domain/register';
 
 import { REGISTER_VERSION } from './register-version';
 
@@ -104,9 +104,12 @@ function register(): Promise<SQLite.SQLiteDatabase> {
 
 /**
  * Entries matching what was typed, best first: a match in the name counts most,
- * then the international name, then the composition. Empty for an empty query.
+ * then the international name, then the composition. The same medicine from
+ * another maker or in another flavour is left out. Empty for an empty query.
+ * The limit is high on purpose: «ібупрофен» alone is in 132 entries, and the
+ * screen groups the ones found by substance (splitResults).
  */
-export async function searchRegister(text: string, limit = 30): Promise<RegisterEntry[]> {
+export async function searchRegister(text: string, limit = 150): Promise<RegisterEntry[]> {
   const match = searchQuery(text);
   if (!match) return [];
   const rows = await (await register()).getAllAsync<Row>(
@@ -115,9 +118,36 @@ export async function searchRegister(text: string, limit = 30): Promise<Register
       where register_search match ?
       order by bm25(register_search, 10, 3, 1)
       limit ?`,
-    [match, limit],
+    [match, limit * 2],
   );
-  return rows.map(toEntry);
+  return distinctEntries(rows.map(toEntry)).slice(0, limit);
+}
+
+let brands: Promise<string[]> | null = null;
+
+/**
+ * Every brand in the Register once, the commonest first (most entries), for
+ * the «did you mean» of a misspelt search (closeBrands).
+ */
+export function registerBrands(): Promise<string[]> {
+  brands ??= register()
+    .then((db) => db.getAllAsync<{ name: string }>(`select name from register_entries`))
+    .then((rows) => {
+      const count = new Map<string, { brand: string; n: number }>();
+      for (const { name } of rows) {
+        const brand = brandOf(name);
+        const key = searchText(brand).replace(/['’ʼ`]/g, ''); // «здоров’я» and «здоров'я»
+        const seen = count.get(key);
+        if (seen) seen.n++;
+        else count.set(key, { brand, n: 1 });
+      }
+      return [...count.values()].sort((a, b) => b.n - a.n).map((b) => b.brand);
+    })
+    .catch((e: unknown) => {
+      brands = null;
+      throw e;
+    });
+  return brands;
 }
 
 export async function getRegisterEntry(id: string): Promise<RegisterEntry | null> {

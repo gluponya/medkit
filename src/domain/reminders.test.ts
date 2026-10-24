@@ -68,6 +68,9 @@ test('a dose comes out of the opened pack, then the one expiring first', () => {
   assert.deepEqual(packOrder(packs).map((p) => p.id), ['soon', 'empty', 'uncounted', 'late']);
   assert.equal(stockOf(packs), 14);
   assert.equal(stockOf([packs[3]]), null);
+  const unknown = { id: 'unknown', expires: null, quantity: 5, openedAt: null };
+  assert.equal(packToTake([...packs, unknown])?.id, 'unknown');
+  assert.deepEqual(packOrder([...packs, unknown]).map((p) => p.id), ['unknown', 'empty', 'uncounted', 'soon', 'late']);
 });
 
 test('a feminine name changes after a verb', () => {

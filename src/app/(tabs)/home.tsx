@@ -12,7 +12,6 @@ import { firstSteps, firstStepsFinished } from '@/domain/first-steps';
 import { overview } from '@/domain/overview';
 import { useT } from '@/i18n';
 import { Button } from '@/ui/Button';
-import { useDraft } from '@/features/add/draft';
 import { FirstSteps } from '@/features/first-steps/FirstSteps';
 import { MedicineList } from '@/features/home/MedicineList';
 import { Icon } from '@/ui/Icon';
@@ -48,11 +47,8 @@ export default function Home() {
   if (!cabinet) return null;
 
   const soon = () => router.push('/soon');
-  // Search and the scanner are not built yet; typing the name is step 1 of adding by hand.
-  const addByHand = () => {
-    useDraft.getState().reset();
-    router.push('/add/name');
-  };
+  // The scanner is not built yet, so adding starts with the Register search.
+  const find = () => router.push('/add/search');
   const showSteps = !stepsFinished && !finishedNow;
   // The typed-routes generator lists /medicine/[id] as a static path on Windows, so it is cast.
   const openMedicine = (id: string) => router.push(`/medicine/${id}` as Href);
@@ -77,7 +73,7 @@ export default function Home() {
             <Pressable accessibilityRole="button" accessibilityLabel={t('home.search')} onPress={soon} style={[styles.round, styles.roundSearch]}>
               <Icon name="search" size={20} color={colors.ink} />
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={t('home.add')} onPress={addByHand} style={[styles.round, styles.roundAdd]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('home.add')} onPress={find} style={[styles.round, styles.roundAdd]}>
               <Icon name="plus" size={22} color={colors.primary} />
             </Pressable>
           </View>
@@ -85,7 +81,13 @@ export default function Home() {
 
         {showSteps ? (
           <>
-            <FirstSteps steps={steps} medicineCount={medicineCount} onScan={soon} onFind={addByHand} onAddReminder={soon} />
+            <FirstSteps
+              steps={steps}
+              medicineCount={medicineCount}
+              onScan={soon}
+              onFind={find}
+              onAddReminder={() => router.push('/pick-medicine')}
+            />
             {medicineCount === 0 ? (
               <View style={styles.placeholder}>
                 <Icon name="first-aid-kit" size={32} />
@@ -104,7 +106,7 @@ export default function Home() {
             <Text style={[type.bodyMedium, styles.muted, styles.center]}>{t('home.emptyText')}</Text>
             <View style={styles.emptyButtons}>
               <Button label={t('home.scan')} icon="scan" onPress={soon} />
-              <Button label={t('home.find')} icon="search" variant="secondary" onPress={addByHand} />
+              <Button label={t('home.find')} icon="search" variant="secondary" onPress={find} />
             </View>
           </View>
         ) : (

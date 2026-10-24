@@ -1,11 +1,13 @@
 import { asc, count, eq } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import { useMemo } from 'react';
 import { uuidv7 } from 'uuidv7';
 
-import { defaultMode, type CabinetIcon, type Place } from '@/domain/places';
+import { localDay } from '@/domain/expiry';
+import { defaultMode, type CabinetIcon, type CabinetMode, type Place } from '@/domain/places';
 
 import { db } from './db/client';
-import { cabinets, medicines } from './db/schema';
+import { cabinets, medicines, packages } from './db/schema';
 import { useSession } from './session';
 
 export type Cabinet = typeof cabinets.$inferSelect;
@@ -50,4 +52,61 @@ export function useMedicineCount(cabinetId: string | undefined): number {
     [cabinetId],
   );
   return data[0]?.n ?? 0;
+}
+
+/** Cabinet settings: name, icon, warning days, what it tracks. */
+export async function updateCabinet(
+  id: string,
+  patch: Partial<{ name: string; icon: CabinetIcon; expiryWarningDays: number; mode: CabinetMode }>,
+): Promise<void> {
+  await db
+    .update(cabinets)
+    .set({ ...patch, ...(patch.name === undefined ? {} : { name: patch.name.trim() }) })
+    .where(eq(cabinets.id, id));
+}
+
+/** «Видалити аптечку»: the cabinet and everything in it (by cascade). */
+export async function deleteCabinet(id: string): Promise<void> {
+  await db.delete(cabinets).where(eq(cabinets.id, id));
+  const { currentCabinetId, setCurrentCabinet } = useSession.getState();
+  if (currentCabinetId !== id) return;
+  const next = await db.select({ id: cabinets.id }).from(cabinets).orderBy(asc(cabinets.createdAt)).limit(1);
+  if (next[0]) setCurrentCabinet(next[0].id);
+}
+
+export interface CabinetCounts {
+  medicines: number;
+  /** Medicines with at least one pack past its date. */
+  expired: number;
+}
+
+/** For each cabinet, how many medicines and how many of them expired: the line under its name. */
+export function useCabinetCounts(): Map<string, CabinetCounts> {
+  const { data: meds } = useLiveQuery(
+    db.select({ cabinetId: medicines.cabinetId, n: count() }).from(medicines).groupBy(medicines.cabinetId),
+  );
+  const { data: packs } = useLiveQuery(
+    db
+      .select({ cabinetId: medicines.cabinetId, medicineId: packages.medicineId, expires: packages.expires })
+      .from(packages)
+      .innerJoin(medicines, eq(medicines.id, packages.medicineId))
+      .where(eq(packages.status, 'active')),
+  );
+  return useMemo(() => {
+    const today = localDay(new Date());
+    const counts = new Map<string, CabinetCounts>();
+    for (const m of meds) counts.set(m.cabinetId, { medicines: m.n, expired: 0 });
+    const expired = new Map<string, Set<string>>();
+    for (const p of packs) {
+      if (p.expires === null || p.expires >= today) continue;
+      const set = expired.get(p.cabinetId) ?? new Set<string>();
+      set.add(p.medicineId);
+      expired.set(p.cabinetId, set);
+    }
+    for (const [cabinetId, set] of expired) {
+      const c = counts.get(cabinetId);
+      if (c) c.expired = set.size;
+    }
+    return counts;
+  }, [meds, packs]);
 }

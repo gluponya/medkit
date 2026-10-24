@@ -5,9 +5,9 @@ import { StyleSheet, View } from 'react-native';
 import { useCurrentCabinet } from '@/data/cabinets';
 import { addMedicine } from '@/data/medicines';
 import { CATEGORIES } from '@/domain/categories';
-import { expiryFromMonth } from '@/domain/expiry';
 import { StepScreen } from '@/features/add/StepScreen';
-import { useDraft } from '@/features/add/draft';
+import { draftExpires, useDraft } from '@/features/add/draft';
+import { finishAdd } from '@/features/add/finish';
 import { CATEGORY_ICON, CATEGORY_NAME } from '@/features/add/labels';
 import { useT } from '@/i18n';
 import { Tile } from '@/ui/Tile';
@@ -31,19 +31,19 @@ export default function CategoriesStep() {
     });
 
   const save = async () => {
-    if (!cabinet || !draft.form || draft.year === null || draft.month === null) return;
+    const expires = draftExpires(draft);
+    if (!cabinet || !draft.form || expires === undefined) return;
     setSaving(true);
     try {
-      await addMedicine({
+      const added = await addMedicine({
         cabinetId: cabinet.id,
         name: draft.name,
         form: draft.form,
-        expires: expiryFromMonth(draft.year, draft.month),
+        expires,
         quantity: draft.counted ? draft.quantity : null,
         categories: draft.categories,
       });
-      draft.reset();
-      router.dismissTo('/home');
+      finishAdd(added);
     } finally {
       setSaving(false);
     }

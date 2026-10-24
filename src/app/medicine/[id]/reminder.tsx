@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState, type ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useMedicine, usePacks, type Medicine } from '@/data/medicines';
@@ -21,14 +22,15 @@ import { useI18n, useT } from '@/i18n';
 import { accusativeUk } from '@/i18n/grammar';
 import { BackBar } from '@/ui/BackBar';
 import { Button } from '@/ui/Button';
+import { FitTitle } from '@/ui/FitTitle';
 import { Icon } from '@/ui/Icon';
 import { cardShadow, colors, radius, spacing } from '@/ui/theme';
 import { type } from '@/ui/typography';
 
 type Pick = 1 | 2 | 3 | 'other';
 
-const HOURS = Array.from({ length: 24 }, (_, h) => h);
-const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
+/** The wheel steps by five minutes, as doses are set. */
+const MINUTE_STEP = 5;
 const WEEK = [1, 2, 3, 4, 5, 6, 7];
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -132,7 +134,7 @@ function ReminderForm({ medicine, saved }: { medicine: Medicine; saved: Reminder
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <BackBar label={medicine.name} />
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={type.screenTitle}>{t('reminder.title', { name })}</Text>
+        <FitTitle>{t('reminder.title', { name })}</FitTitle>
         {subtitle ? <Text style={[type.label, styles.subtitle]}>{subtitle}</Text> : null}
 
         <View style={styles.grid}>
@@ -346,28 +348,47 @@ function TimeSheet({
   onClose: () => void;
 }) {
   const t = useT();
+  const language = useI18n((state) => state.language);
   const [h, m] = start.split(':').map(Number);
-  const [hour, setHour] = useState(h);
-  const [minute, setMinute] = useState(m - (m % 5));
+  const [time, setTime] = useState(() => {
+    const date = new Date();
+    date.setHours(h, m - (m % MINUTE_STEP), 0, 0);
+    return date;
+  });
+  const picked = `${pad(time.getHours())}:${pad(time.getMinutes())}`;
+  // The system wheel, 24-hour in both languages.
+  const locale = language === 'uk' ? 'uk-UA' : 'en-GB';
+
+  // Android has no inline wheel: the system dialog stands in for the sheet.
+  if (Platform.OS !== 'ios') {
+    return (
+      <DateTimePicker
+        value={time}
+        mode="time"
+        is24Hour
+        minuteInterval={MINUTE_STEP}
+        onChange={(event, date) => {
+          if (event.type === 'set' && date) onPick(`${pad(date.getHours())}:${pad(date.getMinutes())}`);
+          else onClose();
+        }}
+      />
+    );
+  }
 
   return (
     <Sheet onClose={onClose}>
-      <View style={styles.sheetHead}>
-        <Text style={type.sectionTitle}>{t('reminder.pickTime')}</Text>
-        <Text style={[type.screenTitle, styles.primary]}>{`${pad(hour)}:${pad(minute)}`}</Text>
-      </View>
-      <Text style={[type.label, styles.sheetLabel]}>{t('reminder.hour')}</Text>
-      <View style={styles.tiles}>
-        {HOURS.map((h) => (
-          <Chip key={h} label={pad(h)} picked={h === hour} onPress={() => setHour(h)} />
-        ))}
-      </View>
-      <Text style={[type.label, styles.sheetLabel]}>{t('reminder.minute')}</Text>
-      <View style={styles.tiles}>
-        {MINUTES.map((m) => (
-          <Chip key={m} label={pad(m)} picked={m === minute} onPress={() => setMinute(m)} />
-        ))}
-      </View>
+      <Text style={type.sectionTitle}>{t('reminder.pickTime')}</Text>
+      <DateTimePicker
+        value={time}
+        mode="time"
+        display="spinner"
+        locale={locale}
+        minuteInterval={MINUTE_STEP}
+        textColor={colors.ink}
+        themeVariant="light"
+        onChange={(_, date) => date && setTime(date)}
+        style={styles.wheel}
+      />
       <View style={styles.sheetButtons}>
         {canRemove ? (
           <View style={styles.fill}>
@@ -375,7 +396,7 @@ function TimeSheet({
           </View>
         ) : null}
         <View style={styles.fill}>
-          <Button label={t('common.done')} onPress={() => onPick(`${pad(hour)}:${pad(minute)}`)} />
+          <Button label={t('common.done')} onPress={() => onPick(picked)} />
         </View>
       </View>
     </Sheet>
@@ -488,9 +509,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
   },
-  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sheetLabel: { marginBottom: -spacing.xs },
-  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs + 2 },
+  wheel: { alignSelf: 'stretch', height: 216 },
   sheetButtons: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   input: {
     ...type.input,

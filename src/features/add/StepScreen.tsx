@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
 import { Button } from '@/ui/Button';
+import { FitTitle } from '@/ui/FitTitle';
 import { Icon, type IconName } from '@/ui/Icon';
 import { colors, spacing } from '@/ui/theme';
 import { type } from '@/ui/typography';
@@ -60,7 +61,7 @@ export function StepScreen({
 
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={type.screenTitle}>{title}</Text>
+          <FitTitle>{title}</FitTitle>
           <Text style={[type.bodyMedium, styles.subtitle]}>{subtitle}</Text>
           <View style={styles.answer}>{children}</View>
         </ScrollView>

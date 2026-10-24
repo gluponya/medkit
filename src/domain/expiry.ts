@@ -7,7 +7,8 @@
  * the phone's time zone is.
  */
 
-export type ExpiryStatus = 'expired' | 'expiring' | 'good';
+/** `unknown`: no date, she picked «Не знаю» (the box is gone, a loose blister). */
+export type ExpiryStatus = 'expired' | 'expiring' | 'unknown' | 'good';
 
 /** Default for `Cabinet.expiry_warning_days`. */
 export const DEFAULT_EXPIRY_WARNING_DAYS = 30;
@@ -41,13 +42,14 @@ export function addDays(day: string, days: number): string {
 }
 
 /** One pack has exactly one status. */
-export function expiryStatus(expires: string, today: string, warningDays: number): ExpiryStatus {
+export function expiryStatus(expires: string | null, today: string, warningDays: number): ExpiryStatus {
+  if (expires === null) return 'unknown';
   if (expires < today) return 'expired';
   if (expires <= addDays(today, warningDays)) return 'expiring';
   return 'good';
 }
 
-const RANK: Record<ExpiryStatus, number> = { expired: 0, expiring: 1, good: 2 };
+const RANK: Record<ExpiryStatus, number> = { expired: 0, expiring: 1, unknown: 2, good: 3 };
 
 /** A medicine shows the worst of its active packs; none at all reads as good. */
 export function worstStatus(statuses: readonly ExpiryStatus[]): ExpiryStatus {
@@ -76,4 +78,18 @@ export function daysBetween(from: string, to: string): number {
     return Date.UTC(year, month - 1, date);
   };
   return Math.round((utc(to) - utc(from)) / 86_400_000);
+}
+
+/**
+ * Whole years a pack with an unknown expiry has been in the cabinet, once that
+ * is longer than the Register's shelf life: «Термін невідомий, додано 3 роки
+ * тому». Null while it may still be good, or when the shelf life is not known.
+ */
+export function unknownForYears(addedOn: string, today: string, shelfLifeMonths: number | null): number | null {
+  if (shelfLifeMonths === null) return null;
+  const [y, m, d] = addedOn.split('-').map(Number);
+  const [ty, tm, td] = today.split('-').map(Number);
+  const months = (ty - y) * 12 + (tm - m) - (td < d ? 1 : 0);
+  if (months <= shelfLifeMonths) return null;
+  return Math.max(1, Math.floor(months / 12));
 }
