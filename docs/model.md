@@ -12,6 +12,26 @@ anything (decided 2026-10-15). That gives it an identity for the barcode map,
 the photo limit and later sharing; an email or Apple sign-in can be linked to
 the same user later, so nothing is lost.
 
+## On the phone: two databases
+
+- `medkit.db`: the person's own data (cabinets, medicines, packs, tags, later
+  reminders and intakes). Read and written; its schema changes only through
+  migrations (`src/data/db/schema.ts`, `src/data/db/migrations/`).
+- `register.db`: the State Register, read only. Built from the Register's CSV
+  by `tools/build-register.mjs` into `assets/register.db` and shipped with the
+  app; a new app version replaces the copy on the phone whole, without
+  migrations. A medicine points into it by `register_id`. Later
+  `substance_facts` and the ATC → category table may move there too; for now
+  the ATC table is code (`src/domain/categories.ts`).
+
+The October 2026 file has 11,861 medicines in force (not expired, not
+cancelled, not bulk substances), about 10 MB. Search is SQLite FTS5 over the
+name, the international name and the composition, every word a prefix. The
+Register writes the international name in Latin («Ibuprofen»); the Ukrainian
+one is only in the composition, declined («ібупрофену»), which the prefix
+match covers. «є/е», «і/и», «ґ/г» and the Russian letters are folded, so
+«нурофен» finds «Нурофєн» and «ибупрофен» finds «ібупрофен».
+
 ## Entities
 
 ```
@@ -50,7 +70,7 @@ What the medicine is, independent of how many packs there are.
 | form | Tablets, capsules, drops, syrup, ointment, spray, powder, other. Sets the stock unit. |
 | strength | «200 мг», «0.05%». Free text. |
 | manufacturer | Optional. |
-| tags | Categories as tags, several per medicine, the way people look for medicines in a pharmacy: «Серце і судини», «Знеболювальні», «Від алергії»… Set from the Register's ATC code through our own ATC → category table; can be changed. |
+| tags | Categories as tags, several per medicine, the way people look for medicines in a pharmacy: «Серце і судини», «Знеболювальні», «Від алергії»… Set from the Register's ATC code through our own ATC → category table; can be changed. Stored in `medicine_categories`: a built-in key (`src/domain/categories.ts`) or the id of an own category (`custom_categories`, kept per phone, so it is there in every cabinet). |
 | rx | Prescription only. From the Register's «Умови відпуску» when linked. Low stock then reminds «не забудьте рецепт». |
 | register_entry | Optional link to the State Register: instruction link, full form text, shelf life. |
 | low_stock_threshold | Optional, in stock units. Empty means "no low-stock warning". |

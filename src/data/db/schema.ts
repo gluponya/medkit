@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
+import type { MedicineForm } from '@/domain/medicine';
 import type { CabinetIcon, CabinetMode, Place } from '@/domain/places';
 
 /**
@@ -24,16 +25,6 @@ export const cabinets = sqliteTable('cabinets', {
   createdAt: createdAt(),
 });
 
-export type MedicineForm =
-  | 'tablets'
-  | 'capsules'
-  | 'drops'
-  | 'syrup'
-  | 'ointment'
-  | 'spray'
-  | 'powder'
-  | 'other';
-
 export const medicines = sqliteTable(
   'medicines',
   {
@@ -48,6 +39,8 @@ export const medicines = sqliteTable(
     manufacturer: text('manufacturer'),
     rx: integer('rx', { mode: 'boolean' }).notNull().default(false),
     lowStockThreshold: integer('low_stock_threshold'),
+    /** `register_entries.id` in assets/register.db, when picked from the Register. */
+    registerId: text('register_id'),
     createdAt: createdAt(),
   },
   (t) => [index('medicines_cabinet').on(t.cabinetId)],
@@ -71,4 +64,30 @@ export const packages = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [index('packages_medicine').on(t.medicineId)],
+);
+
+/**
+ * Categories the person adds next to the built-in ones (src/domain/categories.ts).
+ * Kept per phone, not per cabinet, so an own category is there in every cabinet.
+ */
+export const customCategories = sqliteTable('custom_categories', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  icon: text('icon').notNull(),
+  createdAt: createdAt(),
+});
+
+/** A medicine's tags: a built-in `Category` key, or a `custom_categories.id`. */
+export const medicineCategories = sqliteTable(
+  'medicine_categories',
+  {
+    medicineId: text('medicine_id')
+      .notNull()
+      .references(() => medicines.id, { onDelete: 'cascade' }),
+    category: text('category').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.medicineId, t.category] }),
+    index('medicine_categories_category').on(t.category),
+  ],
 );
