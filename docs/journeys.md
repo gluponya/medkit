@@ -142,6 +142,23 @@ not expired, in this cabinet or another.
 **Friction:** an expired code needs a clear message and «Попросити новий код».
 **Done when:** the shared cabinet is in her switcher.
 
+## J8. "Can I have a drink tonight?"
+
+**Trigger:** a course of antibiotics ended yesterday, a party tonight. **Goal:**
+know whether the medicine is still in the body and what the instruction says
+about alcohol.
+
+1. Opens the medicine from `[Home]` or search → `[Medicine]`.
+2. At the bottom, under everything else, a note: when the last dose was, when it
+   is gone from the body, whether it built up over the course, and the
+   instruction's own words about alcohol (with the wait it names, if any).
+3. The note never says "можна" or "не можна" by itself; the person decides, or
+   asks a pharmacist.
+
+**Friction:** intakes were not marked → the note gives the general time only
+(«Виводиться приблизно за 2 доби»), not a date; the substance is not covered
+yet → no note. **Done when:** she knows the date and the instruction's words.
+
 ---
 
 ## Not in the first version
@@ -149,3 +166,14 @@ not expired, in this cabinet or another.
 Kept here so they are not lost: shopping list sync between members, opened-pack
 expiry for drops, OCR of printed expiry dates, history of intakes as charts,
 exporting a medicine list for a doctor.
+
+### Idea: a weekly pillbox (the owner, 2026-10-22)
+
+A «День / Тиждень» switch on `[Today]`. The week looks like a real pillbox:
+seven columns Пн–Нд, three rows «Ранок / День / Вечір», each cell with the
+number of pills and small coloured dots for the medicines. Past days show what
+was taken and what was missed; a tap on a cell says what goes into it. Under
+it, the stock for the week («На тиждень потрібно 21 шт, є 14») with the
+shortfall sent to the shopping list. Worth it when the schedule differs by
+day (days of the week, a course ending mid-week) and for filling a real
+pillbox on Sunday; for one daily pill it shows seven equal columns.

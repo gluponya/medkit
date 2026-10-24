@@ -21,6 +21,7 @@ Cabinet ──< Medicine ──< Package
 Person ──< Reminder
 Cabinet ──< Membership >── Person      (only for shared cabinets)
 Medicine >── RegisterEntry             (optional link to the State Register)
+Medicine >──< SubstanceFacts           (by INN: half-life, alcohol note)
 ```
 
 ### Cabinet
@@ -97,6 +98,11 @@ offered, in Settings and once after joining or inviting, as «Зберегти �
 на новому телефоні». Without it, a new phone loses the shared cabinets and the
 person has to be invited again.
 
+A person has a `name` that other members see. It is asked once, when joining
+or first inviting («Як вас підписати для інших?»), and changed in Settings.
+An invite is one code (6 letters and digits) inside a link; it works for 7
+days and for any number of people. New members join as `member`.
+
 | Role | Can |
 |---|---|
 | owner | Everything, including deleting the cabinet. |
@@ -124,6 +130,68 @@ Stock status is separate and only exists when quantity is counted:
 The home counters «В наявності / Закінчується / Протерміновано» from Figma mix
 the two. They become: «Протерміновано», «Скоро закінчиться термін», «Мало
 залишилось», each a filter of the list. "В наявності" is just the whole list.
+
+## Time in the body and alcohol
+
+Asked by the owner on 2026-10-22: how long a medicine stays in the blood, whether
+it builds up, when it is gone, and so whether alcohol is safe.
+
+### SubstanceFacts
+
+Per active substance (INN), not per trade name: «Нурофен» and «Ібупрофен-Дарниця»
+share one row. Shipped with the app next to the Register index.
+
+| Field | Notes |
+|---|---|
+| inn | Key. |
+| half_life_hours | `{min, max}`, as the instruction gives it. Many give a range. |
+| metabolite_half_life_hours | Optional. Some active metabolites stay far longer than the drug (fluoxetine: days for the drug, up to two weeks for norfluoxetine). |
+| alcohol | `forbidden`, `avoid`, `caution`, `not_mentioned`. |
+| alcohol_wait_hours | Optional. Only when the instruction names a wait after the last dose (metronidazole: 48 h). |
+| alcohol_quote | The instruction's own sentence about alcohol, verbatim. |
+| source | Link to the instruction the facts come from. |
+| reviewed | A person has checked the row against the source. Unreviewed rows are not shipped. |
+
+The Register CSV has none of this. It is in the instruction text («Фармакокінетика»,
+«Взаємодія з іншими лікарськими засобами», «Особливості застосування»), which is
+already turned into text on the server. A model pulls the fields out once per INN;
+a person then reviews each row before it ships.
+
+A medicine with several substances uses the longest half-life and the strictest
+alcohol rule of them. No row, or no half-life in the instruction: the block is
+simply not shown. The app never guesses a number.
+
+### Rules
+
+Computed from the person's own `taken` Intakes (reminders and «as needed» alike),
+so only in `with_intake` cabinets and only for what was actually marked.
+
+- **Last dose**: the latest `taken` Intake of the medicine.
+- **Gone by**: last dose + 5 × the longest half-life (drug or metabolite), using
+  `max` of the range. After 5 half-lives about 97% is gone. Shown as a date and
+  time, rounded up.
+- **Builds up**: when the medicine was taken regularly and the gap between doses
+  is shorter than the half-life, the level grows over about 5 half-lives and then
+  holds. The «gone by» rule stays the same (it counts from the last dose), but the
+  screen says the medicine builds up, so a long course is not read as "one pill".
+- **Alcohol** is a separate answer, never derived from «gone by»:
+  - `alcohol_wait_hours` set: wait until the later of «gone by» and last dose +
+    that wait;
+  - `forbidden` / `avoid` / `caution`: the instruction's quote, plus «gone by»;
+  - `not_mentioned`: says the instruction says nothing about alcohol, and that a
+    pharmacist can tell.
+- The app never shows "можна пити" or a green "safe". It shows dates and the
+  instruction's words. Half-life differs with age, liver and kidneys, so every
+  such block carries one short line saying the numbers are averages from the
+  instruction.
+
+### Decided (2026-10-22)
+
+- Launch covers only the substances people usually keep at home (a few hundred:
+  pain and fever, colds, allergy, stomach, antibiotics, heart and pressure,
+  sleep and nerves, vitamins). Others get rows later.
+- No separate question or button: it is a quiet note at the bottom of the
+  medicine screen (see `docs/screens.md`, Medicine).
 
 ## Barcodes
 
