@@ -55,9 +55,18 @@ A place where medicines are kept: home, car, dacha, parents'.
 | icon | One of twelve line icons. Defaults from the place (Інше: a first-aid kit); can be picked when the cabinet is created or later. |
 | mode | `expiry_only` or `with_intake`. Home defaults to `with_intake`, the rest to `expiry_only`. Can be changed. |
 | expiry_warning_days | When a pack counts as «Закінчується термін». Default 30. |
+| expiry_push | Expiry notices and the weekly summary include this cabinet. On by default; off for a cabinet she only checks on visits. Home still shows its expired and expiring packs. |
+
+A cabinet also keeps, on the phone, whether it is synced and the person's
+role in it ("Syncing a shared cabinet").
 
 The «Особиста / Сімейна» type from the Figma design is dropped: a cabinet is
 shared when it has more than one member.
+
+Switching a cabinet to `expiry_only` keeps its reminders and intakes but
+silences them: no dose notifications, no «Сьогодні» tab while that cabinet is
+on screen. Switching back brings them back as they were. Deleting a cabinet
+deletes everything in it.
 
 ### Medicine
 
@@ -67,7 +76,7 @@ What the medicine is, independent of how many packs there are.
 |---|---|
 | name | Required. Trade name, e.g. «Нурофен». |
 | inn | Active substance, e.g. «ібупрофен». From the Register when linked. Lets search find «Нурофен» by «ібупрофен». |
-| form | Tablets, capsules, drops, syrup, ointment, spray, powder, other. Sets the stock unit. |
+| form | Tablets, capsules, drops, syrup, ointment, spray, powder, other; under «Інше» the Register's commoner other forms: solution, injection, suspension, suppositories, tincture, emulsion, herbs, patch (picked from tiles that open under «Інше», never typed). Plain «other» stays for the rest. Sets the stock unit and the strength units offered. |
 | strength | «200 мг», «0.05%». Free text. |
 | manufacturer | Optional. |
 | tags | Categories as tags, several per medicine, the way people look for medicines in a pharmacy: «Серце і судини», «Знеболювальні», «Від алергії»… Set from the Register's ATC code through our own ATC → category table; can be changed. Stored in `medicine_categories`: a built-in key (`src/domain/categories.ts`) or the id of an own category (`custom_categories`, kept per phone, so it is there in every cabinet). |
@@ -84,7 +93,7 @@ One physical pack. Two packs of the same medicine can have different expiry date
 | expires | Month and year, as printed on packs; stored as the last day of that month. Further away than the Register's shelf life from today → «Точно?», a likely typo. Empty only when she picks «Не знаю» (the box with the date is gone, a loose blister): the pack is then «Термін невідомий». Always asked for; there is no plain «Пропустити». |
 | quantity | Optional. In the form's unit (pieces for tablets, ml for liquids). Empty = not counted, the pack is just "there". |
 | opened_at | Never asked for tablets: set automatically when a pack is added with less than its full count (the date it was added), or on the first intake from it. Later, for drops and syrups that expire sooner once opened, the form asks for it, since it changes the expiry. |
-| status | `active`, `used_up`, `disposed`. Used-up and disposed packs stay for history but leave the list. |
+| status | `active`, `used_up`, `disposed`. Used-up and disposed packs stay for history but leave the list. Disposing the last pack of a medicine that never ran out (no `used_up` pack) removes the medicine from the cabinet, with its reminders; the app asks first. One that ran out stays as «Закінчилось». |
 | gtin | Optional. The barcode the pack was scanned from, so «Змінити ліки» can correct `barcode_map` (see "Changing what a medicine is"). |
 
 ### Reminder (only in `with_intake` cabinets)
@@ -164,6 +173,91 @@ days and for any number of people. New members join as `member`.
 | admin | Edit medicines and packs, invite people. |
 | member | See the cabinet, change quantities, mark their own intakes. |
 
+Joining is from a link, from Welcome («У мене є запрошення»), or from the
+cabinet switcher, «Приєднатися за кодом» under «Додати аптечку» (the owner,
+2026-10-24). In Expo Go a link cannot open the app, so «Поділитися
+посиланням» sends a text with the code, and the code is typed.
+
+Own categories used on a shared cabinet's medicines are seen by every member
+(the owner, 2026-10-24): they come to the other phones with the medicines and
+join their list of categories.
+
+What a role allows is checked by the server; the phone hides what the role
+cannot do.
+
+## Syncing a shared cabinet
+
+The same design as Freshka's (its `docs/sync.md`), cut down to what is shared.
+
+**What goes to the server.** Only cabinets that are shared, and in them the
+medicines, packs, their categories and the own categories those use. A cabinet
+goes up whole the first time its owner opens «Запросити», and from then on it
+stays synced, even if everyone else leaves. Personal cabinets, reminders,
+intakes, the shopping list and the settings stay on the phone. A cabinet's
+«Сповіщення про термін» is per phone too.
+
+**Offline first.** Screens read and write only SQLite, as before. A change in a
+synced cabinet also writes a row to a local `outbox`, in the same statement:
+SQLite triggers write it, so no screen and no data function has to remember to.
+A background worker sends the outbox in order, then brings the memberships,
+then pulls what changed on the server since its cursors. It runs on start, on
+return to the app, when the network comes back, two seconds after a change, and
+on a Realtime nudge while the app is open. Rows a pull writes do not go back
+into the outbox.
+
+**Conflicts**, when two phones changed the same thing:
+
+| Phone A | Phone B | After both sync |
+|---|---|---|
+| renamed the medicine | changed its strength | both changes |
+| set the expiry to May | set it to June later | June: the later edit wins, by when the person made it |
+| took 1 tablet of 10 | took 1 tablet of 10 | 8: a count travels as a change, floored at 0 |
+| deleted the medicine | changed its pack | deleted |
+
+- Per field, the later edit wins, by the phone's time of the edit, never later
+  than the server's clock (a phone set a year ahead does not win for a year).
+- A pack's quantity travels as `quantity_delta`; a bare quantity only when
+  the pack starts or stops being counted.
+- A deleted medicine stays deleted; only its owner's undo brings it back.
+
+**Moving a medicine** between a synced and a personal cabinet is a delete on
+one side and a whole insert on the other.
+
+**Leaving or being removed.** A cabinet the server no longer lists for this
+person goes from the phone, with whatever of it was still in the outbox.
+«Видалити аптечку» by the owner deletes it for everyone (asks first); for
+anyone else it is «Вийти з аптечки», and the cabinet stays for the rest.
+
+**No network.** Nothing stops. Invite and join need the network, and say so.
+
+**Identity.** The anonymous user of the first launch (see the top). Its name
+is a `profiles` row; the members list and «Олена запрошує вас» read it.
+
+
+## Notifications
+
+All are scheduled on the phone, one-off, and laid out again on every start,
+every return to the app and every change that touches them. iOS keeps at most
+64, so 60 are used: a notice for each of the 8 packs whose date comes soonest,
+the weekly summary, then doses in time order.
+
+- **Dose:** at each reminder time of a `with_intake` cabinet, for 7 days ahead.
+- **Missed dose:** one repeat, `missed_repeat_minutes` after the dose (default
+  15, can be off), unless the dose is marked taken first. Never past midnight.
+- **Expiry:** at 09:00, `expiry_notice_days` before a pack's date (default 30).
+  A notice whose day has passed is not sent late: the pack is on Home anyway.
+- **Weekly summary** (switch, on by default): Monday 09:00, how many packs are
+  expired and expiring by then. Not sent when there are none.
+- **Shopping:** see "Shopping list".
+
+The person's settings (name, the two numbers, the summary switch) are kept on
+the phone, not per cabinet. Permission is asked on the first saved medicine,
+reminder or ticked shopping line, whichever comes first.
+
+`expiry_notice_days` (the push) and the cabinet's `expiry_warning_days` (when
+Home shows «Закінчується термін») are separate on purpose: a parents' cabinet
+can warn 60 days ahead while the push still comes 30 days before.
+
 ## Changing what a medicine is
 
 Asked by the owner on 2026-10-24: she added «Нурофен», and it turned out she
@@ -197,7 +291,9 @@ nothing in the new one, and the app never converts them:
 
 If the new pick is already in this cabinet, the app offers to join them: the
 packs, reminders and intakes move to the existing medicine and this one is
-deleted. The dose question still applies when the units differ.
+deleted. The dose question still applies when the units differ. A medicine
+has one reminder, so when both have one, the one already there stays and the
+moved one is dropped (the comparison says «Нагадування буде як у «…»»).
 
 If a pack was added by barcode (`gtin` set), the pair in `barcode_map` was
 wrong too: the change withdraws this phone's confirmation of the old pair and
@@ -210,6 +306,16 @@ it removes the pack just added, and the medicine too if it was new (then its
 screen closes and she is back where adding started). A wrong
 pick noticed later is fixed by «Змінити ліки», not by deleting and adding
 again, which loses the expiry, the quantity, the reminders and the history.
+
+## Moving a medicine
+
+A medicine added to the wrong cabinet is moved from «Деталі», row «Аптечка»
+(«Де лежить»). It goes with its packs, tags, intakes and shopping lines. Into
+an `expiry_only` cabinet the reminder is deleted, and the picker says so
+first («Нагадування вимкнеться»). If the target cabinet already has the same
+medicine (same Register id, or the same name), the two are joined as in
+«Змінити ліки»: the one already there keeps its reminder. Only those who can
+edit medicines in both cabinets can move one.
 
 ## Derived statuses
 

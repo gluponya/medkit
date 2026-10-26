@@ -113,7 +113,8 @@ which is fine; the person took it but forgot to tap → can mark it later in
 3. Expired packs stay on top of `[Home]` with the same actions until handled.
 
 **Friction:** a weekly digest is better than many separate pushes when several
-packs expire; she should be able to turn these pushes off per cabinet. **Done
+packs expire (built: the Monday summary, a switch in Settings); she should be
+able to turn these pushes off per cabinet (built: «Сповіщення про термін» on the cabinet screen). **Done
 when:** no expired packs left without a decision.
 
 ## J5. Checking the parents' cabinet on a visit
@@ -127,8 +128,11 @@ what to bring next time.
 3. Goes through the box: «Утилізувати» on expired packs; scans packs that are
    not in the app yet (J2).
 4. Adds what is missing to the shopping list.
-5. Optional: invites a sibling who also helps the parents → `[Members]` →
-   «Запросити» → `[Invite]` link with the code. No account needed.
+5. Optional: invites a sibling who also helps the parents → cabinet settings
+   → «Запросити» (or `[Members]` → «Запросити») → `[Invite]`: a six-character
+   code to send in any messenger or read aloud. No account needed. The first
+   invite shares the cabinet, so it needs the internet once; after that
+   changes wait offline and go up later.
 
 **Friction:** on the spot, fast scanning of many packs in a row matters more
 than details; one hand, the box in the other. **Done when:** no expired packs,
@@ -148,14 +152,20 @@ not expired, in this cabinet or another.
 
 ## J7. Joining someone's cabinet
 
-**Trigger:** her mother sent an invite link. **Goal:** see that cabinet.
+**Trigger:** her mother sent a message with an invite code. **Goal:** see
+that cabinet.
 
-1. Link opens the app (or the store, then the app) → `[Join]` cabinet name and
-   who invited → «Приєднатися» → the cabinet appears in the switcher. No
-   account needed; once, a quiet offer «Зберегти доступ на новому телефоні».
-2. Without the link: `[Welcome]` → «У мене є запрошення» → code field.
+1. `[Welcome]` → «У мене є запрошення», or the cabinet switcher →
+   «Приєднатися за кодом» → `[Join code]`: six cells; a pasted message gives
+   up its code. The sixth character looks it up.
+2. `[Join]`: the cabinet, who invites, its counts, and «Як вас підписати для
+   інших?» prefilled from Settings → «Приєднатися» → the cabinet is current,
+   on Home. No account needed.
+3. A code she already used opens that cabinet; a wrong one says so under the
+   cells.
 
-**Friction:** an expired code needs a clear message and «Попросити новий код».
+**Friction:** an expired code needs a clear message and «Попросити новий код»,
+which sends a message asking for one.
 **Done when:** the shared cabinet is in her switcher.
 
 ## J8. "Can I have a drink tonight?"
