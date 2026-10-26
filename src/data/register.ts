@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 import type { MedicineForm } from '@/domain/medicine';
-import { brandOf, distinctEntries, INSTRUCTION_BASE, searchQuery, searchText } from '@/domain/register';
+import { brandOf, distinctEntries, formFromRegister, INSTRUCTION_BASE, searchQuery, searchText } from '@/domain/register';
 
 import { REGISTER_VERSION } from './register-version';
 
@@ -57,7 +57,8 @@ function toEntry(r: Row): RegisterEntry {
     id: r.id,
     name: r.name,
     inn: r.inn,
-    form: r.form,
+    // The bundled database was built before the forms under «Інше» were told apart.
+    form: r.form === 'other' ? formFromRegister(r.form_text) : r.form,
     strength: r.strength,
     formText: r.form_text,
     rx: r.rx === 1,

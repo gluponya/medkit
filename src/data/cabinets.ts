@@ -8,13 +8,18 @@ import { defaultMode, type CabinetIcon, type CabinetMode, type Place } from '@/d
 
 import { db } from './db/client';
 import { cabinets, medicines, packages } from './db/schema';
+import { rescheduleDoses } from './notifications';
 import { useSession } from './session';
 
 export type Cabinet = typeof cabinets.$inferSelect;
 
-/** A new cabinet, made the current one. */
+/**
+ * A new cabinet, made the current one. A cabinet beside others brings the
+ * switcher hint on Home, unless it was seen before.
+ */
 export async function createCabinet(input: { name: string; place: Place; icon: CabinetIcon }): Promise<string> {
   const id = uuidv7();
+  const [{ n: existing }] = await db.select({ n: count() }).from(cabinets);
   await db.insert(cabinets).values({
     id,
     name: input.name.trim(),
@@ -22,7 +27,9 @@ export async function createCabinet(input: { name: string; place: Place; icon: C
     icon: input.icon,
     mode: defaultMode(input.place),
   });
-  useSession.getState().setCurrentCabinet(id);
+  const session = useSession.getState();
+  session.setCurrentCabinet(id);
+  if (existing > 0 && session.switcherHint === 'unseen') useSession.setState({ switcherHint: 'due' });
   return id;
 }
 
@@ -54,20 +61,23 @@ export function useMedicineCount(cabinetId: string | undefined): number {
   return data[0]?.n ?? 0;
 }
 
-/** Cabinet settings: name, icon, warning days, what it tracks. */
+/** Cabinet settings: name, icon, warning days, expiry pushes, what it tracks. */
 export async function updateCabinet(
   id: string,
-  patch: Partial<{ name: string; icon: CabinetIcon; expiryWarningDays: number; mode: CabinetMode }>,
+  patch: Partial<{ name: string; icon: CabinetIcon; expiryWarningDays: number; expiryPush: boolean; mode: CabinetMode }>,
 ): Promise<void> {
   await db
     .update(cabinets)
     .set({ ...patch, ...(patch.name === undefined ? {} : { name: patch.name.trim() }) })
     .where(eq(cabinets.id, id));
+  // The mode turns its doses on or off, the switch its expiry notices; the name is in them.
+  await rescheduleDoses();
 }
 
 /** «Видалити аптечку»: the cabinet and everything in it (by cascade). */
 export async function deleteCabinet(id: string): Promise<void> {
   await db.delete(cabinets).where(eq(cabinets.id, id));
+  await rescheduleDoses();
   const { currentCabinetId, setCurrentCabinet } = useSession.getState();
   if (currentCabinetId !== id) return;
   const next = await db.select({ id: cabinets.id }).from(cabinets).orderBy(asc(cabinets.createdAt)).limit(1);

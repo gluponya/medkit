@@ -156,20 +156,26 @@ function ReminderForm({ medicine, saved }: { medicine: Medicine; saved: Reminder
         </View>
 
         {pick === 'other' ? (
-          <View style={styles.chips}>
-            {WEEK.map((d) => (
-              <Chip
-                key={d}
-                label={t(`weekday.${d}` as 'weekday.1')}
-                picked={!asNeeded && weekdays.includes(d)}
-                onPress={() => {
-                  setAsNeeded(false);
-                  setWeekdays((list) => (list.includes(d) ? list.filter((x) => x !== d) : [...list, d]));
-                }}
-              />
-            ))}
-            <Chip label={t('reminder.asNeeded')} picked={asNeeded} onPress={() => setAsNeeded((v) => !v)} />
-          </View>
+          <>
+            {/* Which kind first, so a weekday and «За потреби» are never in one row. */}
+            <View style={styles.chips}>
+              <Chip label={t('reminder.onDays')} big picked={!asNeeded} onPress={() => setAsNeeded(false)} />
+              <Chip label={t('reminder.asNeeded')} big picked={asNeeded} onPress={() => setAsNeeded(true)} />
+            </View>
+            {!asNeeded ? (
+              <View style={styles.week}>
+                {WEEK.map((d) => (
+                  <Chip
+                    key={d}
+                    label={t(`weekday.${d}` as 'weekday.1')}
+                    round
+                    picked={weekdays.includes(d)}
+                    onPress={() => setWeekdays((list) => (list.includes(d) ? list.filter((x) => x !== d) : [...list, d]))}
+                  />
+                ))}
+              </View>
+            ) : null}
+          </>
         ) : null}
 
         {pick !== null ? (
@@ -215,6 +221,13 @@ function ReminderForm({ medicine, saved }: { medicine: Medicine; saved: Reminder
                   />
                 </View>
               </>
+            ) : null}
+
+            {plan?.schedule === 'as_needed' ? (
+              <View style={styles.summary}>
+                <Text style={type.cardTitle}>{t('reminder.noAlerts')}</Text>
+                <Text style={type.label}>{t('reminder.noAlertsText')}</Text>
+              </View>
             ) : null}
 
             {showSummary ? (
@@ -290,12 +303,15 @@ function Chip({
   label,
   picked = false,
   big = false,
+  round = false,
   accent = false,
   onPress,
 }: {
   label: string;
   picked?: boolean;
   big?: boolean;
+  /** A weekday: a circle, seven to a row. */
+  round?: boolean;
   /** Blue text: a value to tap and change, like a time. */
   accent?: boolean;
   onPress: () => void;
@@ -305,9 +321,9 @@ function Chip({
       accessibilityRole="button"
       accessibilityState={{ selected: picked }}
       onPress={onPress}
-      style={[styles.chip, big && styles.chipBig, picked && styles.chipPicked]}
+      style={[styles.chip, big && styles.chipBig, round && styles.chipRound, picked && styles.chipPicked]}
     >
-      <Text style={[big ? type.sectionTitle : type.bodyMedium, big && styles.chipBigText, accent && styles.primary, picked && styles.white]}>
+      <Text style={[big || round ? type.sectionTitle : type.bodyMedium, (big || round) && styles.chipBigText, accent && styles.primary, picked && styles.white]}>
         {label}
       </Text>
     </Pressable>
@@ -467,6 +483,8 @@ const styles = StyleSheet.create({
   },
   chipBig: { height: 48, minWidth: 48, paddingHorizontal: spacing.md + 2 },
   chipBigText: { fontFamily: type.bodyMedium.fontFamily, fontSize: 17 },
+  week: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.md },
+  chipRound: { width: 44, height: 44, minWidth: 0, paddingHorizontal: 0, borderRadius: 22 },
   chipPicked: { backgroundColor: colors.primary, borderColor: colors.primary },
   row: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.xl, gap: spacing.sm },
   rowLabel: { fontSize: 17, flexShrink: 0 },

@@ -1,5 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { FitText } from './FitText';
 import { Icon, type IconName } from './Icon';
 import { PressScale } from './motion';
 import { colors, radius, spacing } from './theme';
@@ -45,7 +46,9 @@ export function Tile({
       ]}
     >
       {icon ? <Icon name={icon} size={22} color={colors.primary} /> : null}
-      <Text style={[styles.label, { color: fg }, icon ? styles.fill : null]}>{label}</Text>
+      <FitText style={[styles.label, { color: fg }, icon ? styles.fill : null]} minSize={12}>
+        {label}
+      </FitText>
       {check && picked ? (
         <View style={styles.check}>
           <Icon name="check" size={14} color={colors.white} strokeWidth={3} />

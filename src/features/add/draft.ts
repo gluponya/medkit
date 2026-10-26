@@ -27,6 +27,11 @@ interface DraftState {
   categories: string[];
   /** Where a finished add goes: the medicine, or straight to its new reminder (J3). */
   then: AfterAdd;
+  /**
+   * «Додати» by «Упаковки»: another pack of this medicine. Only the expiry
+   * and quantity steps are asked, and the last one adds the pack.
+   */
+  packFor: string | null;
   set: (patch: Partial<Omit<DraftState, 'set' | 'reset'>>) => void;
   reset: () => void;
 }
@@ -42,6 +47,7 @@ const EMPTY = {
   counted: true,
   categories: [],
   then: 'medicine' as AfterAdd,
+  packFor: null as string | null,
 };
 
 export const useDraft = create<DraftState>()((set) => ({

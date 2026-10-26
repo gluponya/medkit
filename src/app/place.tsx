@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { createCabinet } from '@/data/cabinets';
+import { createCabinet, useCabinets } from '@/data/cabinets';
 import { CABINET_ICONS, defaultIcon, defaultMode, PLACES, type CabinetIcon, type Place } from '@/domain/places';
 import { useT, type MessageKey } from '@/i18n';
 import { Button } from '@/ui/Button';
@@ -33,13 +33,21 @@ const TITLE_SCROLLED = 64;
 
 /**
  * Where is the cabinet (docs/screens.md): five places as tiles, the picked one
- * opens with its name and icon. Home is picked at first, the most common answer.
+ * opens with its name and icon. The first place no cabinet has yet is picked
+ * at first: home for the first cabinet, the most common answer.
  */
 export default function PlaceScreen() {
+  const cabinets = useCabinets();
+  if (!cabinets) return null;
+  const taken = new Set(cabinets.map((c) => c.place));
+  return <PlaceForm first={PLACES.find((p) => p !== 'other' && !taken.has(p)) ?? 'other'} />;
+}
+
+function PlaceForm({ first }: { first: Place }) {
   const t = useT();
-  const [place, setPlace] = useState<Place>('home');
-  const [name, setName] = useState(t('place.home'));
-  const [icon, setIcon] = useState<CabinetIcon>(defaultIcon('home'));
+  const [place, setPlace] = useState<Place>(first);
+  const [name, setName] = useState(first === 'other' ? '' : t(PLACE_NAME[first]));
+  const [icon, setIcon] = useState<CabinetIcon>(defaultIcon(first));
   const [titleInBar, setTitleInBar] = useState(false);
   const [saving, setSaving] = useState(false);
   const nameInput = useRef<TextInput>(null);

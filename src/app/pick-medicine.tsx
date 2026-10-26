@@ -38,7 +38,7 @@ export default function PickMedicineScreen() {
     : medicines;
 
   const details = (m: Medicine) =>
-    [m.inn, t(FORM_NAME[m.form ?? 'other']).toLocaleLowerCase(), m.strength].filter(Boolean).join(' · ');
+    [m.inn, t(FORM_NAME[m.form ?? 'other']).toLocaleLowerCase(), m.strength].filter(Boolean).join(', ');
 
   const pick = (m: Medicine) => {
     router.replace({ pathname: '/medicine/[id]', params: { id: m.id } });
@@ -65,6 +65,7 @@ export default function PickMedicineScreen() {
               placeholder={t('pickMedicine.search')}
               placeholderTextColor={colors.inkMuted}
               style={[type.input, styles.fill]}
+              autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
               maxLength={80}

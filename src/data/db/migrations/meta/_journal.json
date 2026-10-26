@@ -43,6 +43,27 @@
       "when": 1792838994567,
       "tag": "0005_packages_expiry_unknown",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792844673518,
+      "tag": "0006_cabinets_expiry_push",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792845242592,
+      "tag": "0007_sync_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792845244221,
+      "tag": "0008_sync_triggers",
+      "breakpoints": true
     }
   ]
 }

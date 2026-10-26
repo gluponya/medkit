@@ -3,6 +3,7 @@ import { Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { StepScreen } from '@/features/add/StepScreen';
 import { useDraft } from '@/features/add/draft';
+import { addPack, packStep } from '@/features/add/pack';
 import { QUANTITY_TITLE, UNIT } from '@/features/add/labels';
 import { useT } from '@/i18n';
 import { Tile } from '@/ui/Tile';
@@ -14,7 +15,8 @@ const PRESETS = [30, 60, 90, 120];
 /**
  * Step 4: how many are in the pack, so the app knows when to buy more. The
  * number pad is up at once; a preset fills the field and puts it away. «Не
- * рахувати, просто є» leaves the pack uncounted.
+ * рахувати, просто є» leaves the pack uncounted. Adding another pack ends
+ * here, with «Додати».
  */
 export default function QuantityStep() {
   const t = useT();
@@ -22,6 +24,7 @@ export default function QuantityStep() {
   const quantity = useDraft((s) => s.quantity);
   const counted = useDraft((s) => s.counted);
   const set = useDraft((s) => s.set);
+  const packFor = useDraft((s) => s.packFor);
   const ready = !counted || (quantity !== null && quantity > 0);
 
   const type_ = (text: string) => {
@@ -39,10 +42,14 @@ export default function QuantityStep() {
 
   return (
     <StepScreen
-      step={4}
+      {...(packFor ? packStep(2, packFor) : { step: 4 })}
       title={t(QUANTITY_TITLE[form])}
       subtitle={t('add.quantitySubtitle')}
-      next={{ label: t('common.next'), onPress: () => router.push('/add/categories'), disabled: !ready }}
+      next={
+        packFor
+          ? { label: t('common.add'), onPress: () => void addPack(packFor), disabled: !ready }
+          : { label: t('common.next'), onPress: () => router.push('/add/categories'), disabled: !ready }
+      }
     >
       <View style={[styles.field, counted && styles.fieldOn]}>
         <TextInput

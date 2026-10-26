@@ -12,6 +12,14 @@ export const FORM_NAME: Record<MedicineForm, MessageKey> = {
   spray: 'form.spray',
   powder: 'form.powder',
   other: 'form.other',
+  solution: 'form.solution',
+  injection: 'form.injection',
+  suspension: 'form.suspension',
+  suppositories: 'form.suppositories',
+  tincture: 'form.tincture',
+  emulsion: 'form.emulsion',
+  herbs: 'form.herbs',
+  patch: 'form.patch',
 };
 
 /** «Скільки капсул в упаковці?»: the question names the form's unit. */
@@ -24,6 +32,14 @@ export const QUANTITY_TITLE: Record<MedicineForm, MessageKey> = {
   spray: 'add.quantityTitle.ml',
   powder: 'add.quantityTitle.sachets',
   other: 'add.quantityTitle.pieces',
+  solution: 'add.quantityTitle.ml',
+  injection: 'add.quantityTitle.pieces',
+  suspension: 'add.quantityTitle.ml',
+  suppositories: 'add.quantityTitle.pieces',
+  tincture: 'add.quantityTitle.ml',
+  emulsion: 'add.quantityTitle.ml',
+  herbs: 'add.quantityTitle.grams',
+  patch: 'add.quantityTitle.pieces',
 };
 
 /** The short unit inside the quantity field. */
@@ -36,6 +52,14 @@ export const UNIT: Record<MedicineForm, MessageKey> = {
   spray: 'unit.ml',
   powder: 'unit.sachets',
   other: 'unit.pieces',
+  solution: 'unit.ml',
+  injection: 'unit.pieces',
+  suspension: 'unit.ml',
+  suppositories: 'unit.pieces',
+  tincture: 'unit.ml',
+  emulsion: 'unit.ml',
+  herbs: 'unit.grams',
+  patch: 'unit.pieces',
 };
 
 export const CATEGORY_NAME: Record<Category, MessageKey> = {
@@ -87,4 +111,12 @@ export const FORM_ICON: Record<MedicineForm, IconName> = {
   spray: 'spray',
   powder: 'package',
   other: 'pill',
+  solution: 'flask',
+  injection: 'vaccine',
+  suspension: 'bottle',
+  suppositories: 'capsule',
+  tincture: 'bottle',
+  emulsion: 'flask',
+  herbs: 'leaf',
+  patch: 'bandage',
 };

@@ -26,7 +26,13 @@ test('the form comes from the first words', () => {
   assert.equal(formFromRegister('краплі очні, 0,05 %'), 'drops');
   assert.equal(formFromRegister('гель для зовнішнього застосування 5 %'), 'ointment');
   assert.equal(formFromRegister('спрей назальний'), 'spray');
-  assert.equal(formFromRegister('розчин для ін`єкцій'), 'other');
+  assert.equal(formFromRegister('розчин для ін`єкцій'), 'injection');
+  assert.equal(formFromRegister('ліофілізат для розчину для ін’єкцій'), 'injection');
+  assert.equal(formFromRegister('розчин нашкірний 1 %'), 'solution');
+  assert.equal(formFromRegister('суспензія оральна, 100 мг/5 мл'), 'suspension');
+  assert.equal(formFromRegister('супозиторії ректальні по 250 мг'), 'suppositories');
+  assert.equal(formFromRegister('трава по 50 г у пачках'), 'herbs');
+  assert.equal(formFromRegister('газ медичний стиснений'), 'other');
 });
 
 test('the strength is taken as printed', () => {

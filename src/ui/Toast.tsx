@@ -11,7 +11,7 @@ const SHOWN_MS = 5000;
 
 /**
  * A dark pill over the bottom of a screen that says what just happened, with
- * one action to take it back. It fades out by itself; `onHide` is called then.
+ * an action to take it back when there is one. It fades out by itself; `onHide` is called then.
  */
 export function Toast({
   text,
@@ -21,8 +21,8 @@ export function Toast({
   bottom = spacing.lg,
 }: {
   text: string;
-  action: string;
-  onAction: () => void;
+  action?: string;
+  onAction?: () => void;
   onHide: () => void;
   bottom?: number;
 }) {
@@ -44,12 +44,14 @@ export function Toast({
   }, [opacity, reduced]);
 
   return (
-    <Animated.View accessibilityLiveRegion="polite" style={[styles.toast, { bottom, opacity }]}>
+    <Animated.View accessibilityLiveRegion="polite" style={[styles.toast, !action && styles.plain, { bottom, opacity }]}>
       <Icon name="circle-check-filled" size={20} color={GREEN} />
       <Text style={[type.cardTitle, styles.text]}>{text}</Text>
-      <Pressable accessibilityRole="button" onPress={onAction} style={styles.action} hitSlop={8}>
-        <Text style={[type.stepTitle, styles.actionText]}>{action}</Text>
-      </Pressable>
+      {action ? (
+        <Pressable accessibilityRole="button" onPress={onAction} style={styles.action} hitSlop={8}>
+          <Text style={[type.stepTitle, styles.actionText]}>{action}</Text>
+        </Pressable>
+      ) : null}
     </Animated.View>
   );
 }
@@ -77,6 +79,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
   },
+  plain: { paddingRight: spacing.lg },
   text: { flex: 1, color: colors.white },
   action: { height: 40, paddingHorizontal: spacing.md, justifyContent: 'center' },
   actionText: { color: BLUE },

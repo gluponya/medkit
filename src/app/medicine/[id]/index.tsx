@@ -1,12 +1,14 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Fragment, useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCabinets } from '@/data/cabinets';
 import {
   changeStock,
+  deleteMedicine,
   disposePack,
+  disposeRemovesMedicine,
   takeDose,
   undoAdd,
   useMedicine,
@@ -17,20 +19,24 @@ import {
 import { getRegisterEntry } from '@/data/register';
 import { useReminder, type Reminder } from '@/data/reminders';
 import { buyNew, useInShopping } from '@/data/shopping';
-import { CATEGORIES, type Category } from '@/domain/categories';
 import { daysBetween, expiryMonth, expiryStatus, localDay, unknownForYears } from '@/domain/expiry';
+import { canEdit } from '@/domain/sharing';
 import { stockOf } from '@/domain/stock';
-import { CATEGORY_NAME, FORM_ICON, FORM_NAME, UNIT } from '@/features/add/labels';
+import { FORM_ICON, FORM_NAME, UNIT } from '@/features/add/labels';
+import { startPack } from '@/features/add/pack';
+import { useChange } from '@/features/change/draft';
+import { useCategoryName } from '@/features/categories/categories';
 import { useT } from '@/i18n';
 import { BackBar } from '@/ui/BackBar';
 import { Button } from '@/ui/Button';
 import { FitTitle } from '@/ui/FitTitle';
 import { Icon, type IconName } from '@/ui/Icon';
+import { Group, Row } from '@/ui/Rows';
+import { Confirm } from '@/ui/ConfirmSheet';
+import { Sheet } from '@/ui/Sheet';
 import { cardShadow, colors, radius, spacing } from '@/ui/theme';
 import { Toast } from '@/ui/Toast';
 import { type } from '@/ui/typography';
-
-const soon = () => router.push('/soon');
 
 /**
  * Medicine (docs/screens.md, "Medicine"): what it is, its tags, how much is
@@ -40,14 +46,25 @@ const soon = () => router.push('/soon');
 export default function MedicineScreen() {
   const t = useT();
   // added: the pack an add just made, for the «Додано» toast (docs/journeys.md, J2).
-  const { id, added, isNew } = useLocalSearchParams<{ id: string; added?: string; isNew?: string }>();
+  // changed: «Змінити ліки» just ended here, for the «Ліки змінено» toast (J9).
+  // moved: the cabinet it was just moved to, for «Перенесено в «…»».
+  const { id, added, isNew, changed, moved } = useLocalSearchParams<{
+    id: string;
+    added?: string;
+    isNew?: string;
+    changed?: string;
+    moved?: string;
+  }>();
   const [justAdded, setJustAdded] = useState(added ? { packageId: added, isNew: isNew === '1' } : null);
   // Opened by an add: until the screen is left, the footer offers what comes next, not «Прийняти».
   const [afterAdd, setAfterAdd] = useState(Boolean(added));
   const medicine = useMedicine(id);
   const packs = usePacks(id);
   const inShopping = useInShopping(id);
-  const categories = useMedicineCategories(id);
+  const categories = useMedicineCategories(id) ?? [];
+  const categoryName = useCategoryName();
+  // One sheet at a time: «⋯», then the question it may lead to, in the same sheet.
+  const [sheet, setSheet] = useState<'menu' | 'delete' | Package | null>(null);
   const reminder = useReminder(id) ?? undefined;
   const cabinet = useCabinets()?.find((c) => c.id === medicine?.cabinetId);
   const [open, setOpen] = useState(0);
@@ -83,13 +100,21 @@ export default function MedicineScreen() {
   const stock = stockOf(packs);
   const counted = packs.filter((p) => p.quantity !== null).length;
   const withIntake = cabinet?.mode === 'with_intake';
+  // A member of a shared cabinet counts, takes and disposes; the rest is the admins'.
+  const edits = canEdit(cabinet?.role ?? null);
   const dose = reminder?.times[0]?.dose ?? 1;
   const today = localDay(new Date());
   const details = [medicine.inn, t(FORM_NAME[form]).toLocaleLowerCase(), medicine.strength].filter(Boolean).join(', ');
   const subtitle = details.charAt(0).toLocaleUpperCase() + details.slice(1);
 
-  const categoryName = (key: string) =>
-    (CATEGORIES as readonly string[]).includes(key) ? t(CATEGORY_NAME[key as Category]) : key;
+  const openCategories = () =>
+    router.push({ pathname: '/medicine/[id]/categories', params: { id: medicine.id, from: 'chip' } });
+
+  // «⋯»: the sheet closes first, then the screen it picked opens.
+  const fromMenu = (go: () => void) => () => {
+    setSheet(null);
+    go();
+  };
 
   const reminderText = (r: Reminder | undefined) => {
     if (!r) return t('medicine.noReminder');
@@ -100,20 +125,29 @@ export default function MedicineScreen() {
     return t('reminder.timesADay', { count: r.times.length });
   };
 
+  // A pack without a date says how long it has been here instead of whole or opened.
+  const addedAgo = (p: Package) => {
+    if (p.expires !== null) return null;
+    const years = unknownForYears(p.createdAt.slice(0, 10), today, shelfLife);
+    return years === null ? null : t('expiry.addedYearsAgo', { count: years });
+  };
+
+  const packState = (p: Package) => {
+    if (p.quantity === null) return addedAgo(p);
+    return addedAgo(p) ?? (p.openedAt ? t('medicine.opened') : t('medicine.whole'));
+  };
+
   const packLine = (p: Package, first: boolean) =>
     [
       p.quantity === null ? t('medicine.notCounted') : t('medicine.amount', { count: p.quantity, unit }),
-      p.quantity === null ? null : p.openedAt ? t('medicine.opened') : t('medicine.whole'),
+      packState(p),
       first && packs.length > 1 ? t('medicine.takeFirst') : null,
     ]
       .filter(Boolean)
       .join(', ');
 
   const until = (p: Package) => {
-    if (p.expires === null) {
-      const years = unknownForYears(p.createdAt.slice(0, 10), today, shelfLife);
-      return years === null ? t('expiry.unknown') : t('expiry.unknownForYears', { count: years });
-    }
+    if (p.expires === null) return t('expiry.unknown');
     const { year, month } = expiryMonth(p.expires);
     return t('home.until', { date: `${String(month).padStart(2, '0')}.${year}` });
   };
@@ -142,6 +176,24 @@ export default function MedicineScreen() {
     if (justAdded.isNew) router.back();
   };
 
+  // Back to the cabinet first: once the medicine is gone this screen has nothing to show.
+  const leave = async (gone: () => Promise<void>) => {
+    router.back();
+    await gone();
+  };
+
+  // The last pack takes the medicine out of the cabinet, so only that one asks first.
+  const dispose = async (p: Package) => {
+    if (!(await disposeRemovesMedicine(medicine.id, p.id))) return disposePack(medicine.id, p.id);
+    setSheet(p);
+  };
+
+  const change = () => {
+    useChange.getState().reset();
+    useChange.getState().set({ medicineId: medicine.id });
+    router.push({ pathname: '/add/search', params: { change: medicine.id, q: medicine.name } });
+  };
+
   const take = async () => {
     await takeDose({ medicineId: medicine.id, dose, reminderId: reminder?.id ?? null });
     setTaken(true);
@@ -165,9 +217,16 @@ export default function MedicineScreen() {
       <BackBar
         label={cabinet?.name ?? t('common.back')}
         right={
-          <Pressable accessibilityRole="button" accessibilityLabel={t('common.more')} onPress={soon} hitSlop={8}>
-            <Icon name="dots" size={26} color={colors.ink} />
-          </Pressable>
+          edits ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('common.more')}
+              onPress={() => setSheet('menu')}
+              hitSlop={8}
+            >
+              <Icon name="dots" size={26} color={colors.ink} />
+            </Pressable>
+          ) : undefined
         }
       />
       <ScrollView contentContainerStyle={styles.content}>
@@ -184,13 +243,18 @@ export default function MedicineScreen() {
         {medicine.rx || categories.length > 0 ? (
           <View style={styles.chips}>
             {medicine.rx ? (
-              <View style={[styles.chip, styles.chipRx]}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={!edits}
+                onPress={() => router.push({ pathname: '/medicine/[id]/details', params: { id: medicine.id, focus: 'rx' } })}
+                style={[styles.chip, styles.chipRx]}
+              >
                 <Icon name="prescription" size={18} color={colors.warning} />
                 <Text style={type.secondaryStrong}>{t('medicine.rx')}</Text>
-              </View>
+              </Pressable>
             ) : null}
             {categories.map((c) => (
-              <Pressable key={c} accessibilityRole="button" onPress={soon} style={[styles.chip, styles.chipTag]}>
+              <Pressable key={c} accessibilityRole="button" disabled={!edits} onPress={openCategories} style={[styles.chip, styles.chipTag]}>
                 <Text style={[type.secondaryStrong, styles.primary]}>{categoryName(c)}</Text>
               </Pressable>
             ))}
@@ -230,10 +294,17 @@ export default function MedicineScreen() {
 
         <View style={styles.titleRow}>
           <Text style={type.sectionTitle}>{t('medicine.packs')}</Text>
-          <Pressable accessibilityRole="button" onPress={soon} style={styles.add} hitSlop={8}>
-            <Icon name="plus" size={20} color={colors.primary} />
-            <Text style={[type.cardTitle, styles.primary]}>{t('medicine.addPack')}</Text>
-          </Pressable>
+          {edits ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => startPack(medicine.id, medicine.form)}
+              style={styles.add}
+              hitSlop={8}
+            >
+              <Icon name="plus" size={20} color={colors.primary} />
+              <Text style={[type.cardTitle, styles.primary]}>{t('medicine.addPack')}</Text>
+            </Pressable>
+          ) : null}
         </View>
         {packs.length > 0 ? (
           <View style={styles.card}>
@@ -248,11 +319,12 @@ export default function MedicineScreen() {
                       {p.id === justAdded?.packageId ? newBadge : null}
                     </View>
                     <Text style={type.label}>{packLine(p, i === 0)}</Text>
-                    {p.expires === null ? (
+                    {p.expires === null && edits ? (
                       <View style={styles.packSet}>
                         <Button
                           label={t('expiry.set')}
                           icon="calendar-check"
+                          variant="secondary"
                           height={44}
                           onPress={() => router.push({ pathname: '/medicine/[id]/expiry', params: { id, pack: p.id } })}
                         />
@@ -260,7 +332,7 @@ export default function MedicineScreen() {
                     ) : null}
                     <View style={styles.packButtons}>
                       <View style={styles.fill}>
-                        <Button label={t('medicine.dispose')} icon="trash" variant="outline" height={44} onPress={() => void disposePack(p.id)} />
+                        <Button label={t('medicine.dispose')} icon="trash" variant="outline" height={44} onPress={() => void dispose(p)} />
                       </View>
                       <View style={styles.fill}>
                         <Button
@@ -309,8 +381,7 @@ export default function MedicineScreen() {
                 icon="file-text"
                 label={t('medicine.instruction')}
                 value={t('medicine.register')}
-                external
-                onPress={() => void Linking.openURL(leaflet)}
+                onPress={() => router.push({ pathname: '/leaflet', params: { url: leaflet, back: medicine.name } })}
               />
             ) : null}
           </View>
@@ -324,6 +395,18 @@ export default function MedicineScreen() {
             action={t('common.cancel')}
             onAction={() => void undo()}
             onHide={() => setJustAdded(null)}
+            bottom={spacing.md}
+          />
+        ) : changed ? (
+          <Toast
+            text={t('change.done')}
+            onHide={() => router.setParams({ changed: undefined })}
+            bottom={spacing.md}
+          />
+        ) : moved ? (
+          <Toast
+            text={t('move.done', { cabinet: moved })}
+            onHide={() => router.setParams({ moved: undefined })}
             bottom={spacing.md}
           />
         ) : null}
@@ -351,6 +434,37 @@ export default function MedicineScreen() {
             disabled={taken}
           />
         </View>
+      ) : null}
+      {sheet ? (
+        <Sheet onClose={() => setSheet(null)}>
+          {sheet === 'delete' ? (
+            <Confirm
+              title={t('medicine.deleteTitle', { name: medicine.name })}
+              text={packs.length > 0 ? t('medicine.deleteText', { count: packs.length }) : t('medicine.deleteTextNoPacks')}
+              confirm={t('medicine.delete')}
+              onConfirm={() => void leave(() => deleteMedicine(medicine.id))}
+              onClose={() => setSheet(null)}
+            />
+          ) : sheet !== 'menu' ? (
+            <Confirm
+              title={t('medicine.disposeLastTitle')}
+              text={t('medicine.disposeLastText', { name: medicine.name })}
+              confirm={t('medicine.dispose')}
+              onConfirm={() => void leave(() => disposePack(medicine.id, sheet.id))}
+              onClose={() => setSheet(null)}
+            />
+          ) : (
+            <Group>
+              <Row
+                icon="pencil"
+                label={t('details.title')}
+                onPress={fromMenu(() => router.push({ pathname: '/medicine/[id]/details', params: { id: medicine.id } }))}
+              />
+              <Row icon="arrows-exchange" label={t('medicine.change')} onPress={fromMenu(change)} />
+              <Row icon="trash" label={t('medicine.delete')} onPress={() => setSheet('delete')} />
+            </Group>
+          )}
+        </Sheet>
       ) : null}
     </SafeAreaView>
   );
@@ -487,7 +601,13 @@ const styles = StyleSheet.create({
   packSet: { marginTop: spacing.sm },
   packButtons: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   links: { marginTop: spacing.xxl },
-  linkRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg },
+  linkRow: {
+    minHeight: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
   footer: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,

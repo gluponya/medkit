@@ -4,13 +4,14 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { db } from '@/data/db/client';
 import migrations from '@/data/db/migrations/migrations';
 import { rescheduleDoses } from '@/data/notifications';
 import { useSession } from '@/data/session';
+import { startSync } from '@/data/sync';
 import { useI18n, useT } from '@/i18n';
 import { colors, spacing } from '@/ui/theme';
 import { fontAssets, type } from '@/ui/typography';
@@ -42,10 +43,19 @@ export default function RootLayout() {
     if (ready) void SplashScreen.hideAsync();
   }, [ready]);
 
-  // Scheduled doses run only a week ahead: lay them out again on every start.
+  // Scheduled notifications run only a week ahead, and packs change in many
+  // places: lay them out again on every start and every return to the app.
   useEffect(() => {
-    if (success) void rescheduleDoses();
+    if (!success) return;
+    void rescheduleDoses();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void rescheduleDoses();
+    });
+    return () => sub.remove();
   }, [success]);
+
+  // Shared cabinets sync in the background; the screens only read SQLite.
+  useEffect(() => (success ? startSync() : undefined), [success]);
 
   if (!ready) return null;
 

@@ -17,6 +17,7 @@ export const STEPS = 5;
 /**
  * One step of «Додати вручну»: «Назад» and «Скасувати», the progress bar,
  * «Крок N з 5», the question, the answer, and the button at the bottom.
+ * «Змінити ліки» asks its questions in it too, with its own count and cancel.
  */
 export function StepScreen({
   step,
@@ -25,6 +26,8 @@ export function StepScreen({
   children,
   next,
   below,
+  total = STEPS,
+  onCancel,
 }: {
   step: number;
   title: string;
@@ -33,12 +36,16 @@ export function StepScreen({
   next: { label: string; onPress: () => void; disabled?: boolean; icon?: IconName };
   /** Pinned over the button, outside the scroll: the expiry summary. */
   below?: ReactNode;
+  total?: number;
+  onCancel?: () => void;
 }) {
   const t = useT();
-  const cancel = () => {
-    useDraft.getState().reset();
-    router.dismissTo('/home');
-  };
+  const cancel =
+    onCancel ??
+    (() => {
+      useDraft.getState().reset();
+      router.dismissTo('/home');
+    });
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -53,11 +60,11 @@ export function StepScreen({
       </View>
 
       <View style={styles.progress}>
-        {Array.from({ length: STEPS }, (_, i) => (
+        {Array.from({ length: total }, (_, i) => (
           <View key={i} style={[styles.segment, i < step && styles.segmentDone]} />
         ))}
       </View>
-      <Text style={[type.secondary, styles.counter]}>{t('add.step', { step, total: STEPS })}</Text>
+      <Text style={[type.secondary, styles.counter]}>{t('add.step', { step, total })}</Text>
 
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">

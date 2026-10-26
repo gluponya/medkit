@@ -3,6 +3,7 @@ import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlit
 
 import type { MedicineForm } from '@/domain/medicine';
 import type { CabinetIcon, CabinetMode, Place } from '@/domain/places';
+import type { MemberRole } from '@/domain/sharing';
 
 /**
  * The phone's database (docs/model.md). Ids are uuidv7 strings made on the
@@ -22,6 +23,16 @@ export const cabinets = sqliteTable('cabinets', {
   icon: text('icon').$type<CabinetIcon>().notNull(),
   mode: text('mode').$type<CabinetMode>().notNull(),
   expiryWarningDays: integer('expiry_warning_days').notNull().default(30),
+  /** Expiry notices and the weekly summary include this cabinet. */
+  expiryPush: integer('expiry_push', { mode: 'boolean' }).notNull().default(true),
+  /**
+   * Shared through the server (docs/model.md, "Syncing a shared cabinet"): set
+   * when its owner first opens «Запросити», or when it was joined. Changes in it
+   * go to the outbox by the triggers of migration 0008.
+   */
+  synced: integer('synced', { mode: 'boolean' }).notNull().default(false),
+  /** This person's role in a synced cabinet; null in a personal one, which is all theirs. */
+  role: text('role').$type<MemberRole>(),
   createdAt: createdAt(),
 });
 
@@ -165,4 +176,51 @@ export const shoppingItems = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [index('shopping_items_cabinet').on(t.cabinetId)],
+);
+
+/**
+ * Changes in synced cabinets waiting to go to the server, in `seq` order. Written
+ * only by the SQLite triggers of migration 0008, never by the app's code; the
+ * sync worker (src/data/sync) sends and deletes them.
+ */
+export const outbox = sqliteTable('outbox', {
+  seq: integer('seq').primaryKey({ autoIncrement: true }),
+  /** Sent with the change, so a resend after a lost answer is applied once. */
+  id: text('id').notNull(),
+  entity: text('entity').notNull(),
+  /** The row's id; `medicine_id|category` for a medicine's category. */
+  entityId: text('entity_id').notNull(),
+  /** The synced cabinet it belongs to; null for an own category. */
+  cabinetId: text('cabinet_id'),
+  op: text('op').$type<'insert' | 'update' | 'delete'>().notNull(),
+  /** JSON of the changed fields, in the server's column names. */
+  payload: text('payload').notNull(),
+  /** When the person made the change: the later edit of a field wins. */
+  editedAt: text('edited_at').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  lastError: text('last_error'),
+});
+
+/**
+ * The sync worker's own state: a pull cursor per server table, and
+ * `applying` while it writes pulled rows, which keeps the triggers quiet.
+ */
+export const syncMeta = sqliteTable('sync_meta', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+});
+
+/** The people of each synced cabinet, as last brought from the server. */
+export const members = sqliteTable(
+  'members',
+  {
+    cabinetId: text('cabinet_id')
+      .notNull()
+      .references(() => cabinets.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    name: text('name').notNull(),
+    role: text('role').$type<MemberRole>().notNull(),
+    joinedAt: text('joined_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.cabinetId, t.userId] })],
 );

@@ -1,19 +1,24 @@
 import { router, type Href } from 'expo-router';
-import { useEffect, useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutRectangle } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCurrentCabinet, useMedicineCount } from '@/data/cabinets';
 import { usePackRows } from '@/data/medicines';
 import { useReminderCount } from '@/data/reminders';
 import { useSession } from '@/data/session';
+import { useCabinetReminders, useDayIntakes } from '@/data/today';
 import { localDay } from '@/domain/expiry';
 import { firstSteps, firstStepsFinished } from '@/domain/first-steps';
 import { overview } from '@/domain/overview';
+import { nextDose, todayDoses } from '@/domain/today';
 import { useT } from '@/i18n';
 import { Button } from '@/ui/Button';
+import { Switcher } from '@/features/cabinets/Switcher';
 import { FirstSteps } from '@/features/first-steps/FirstSteps';
 import { MedicineList } from '@/features/home/MedicineList';
+import { hhmm, NextDoseCard, useNow } from '@/features/today/NextDoseCard';
+import { Hint } from '@/ui/Hint';
 import { Icon } from '@/ui/Icon';
 import { colors, spacing } from '@/ui/theme';
 import { type } from '@/ui/typography';
@@ -34,6 +39,24 @@ export default function Home() {
   const later = useSession((s) => s.stepsLater);
   const stepsFinished = useSession((s) => s.stepsFinished);
   const finishSteps = useSession((s) => s.finishSteps);
+  const [switching, setSwitching] = useState(false);
+  const hintDue = useSession((s) => s.switcherHint === 'due');
+  const closeHint = useSession((s) => s.closeSwitcherHint);
+  // Where the title sits, for the hint's arrow: the header in the scroll
+  // content, under the status bar, and the switcher inside the header.
+  const insets = useSafeAreaInsets();
+  const [header, setHeader] = useState<LayoutRectangle>();
+  const [title, setTitle] = useState<LayoutRectangle>();
+  // The next dose, as on Today, in a cabinet that keeps intake.
+  const now = useNow();
+  const today = localDay(now);
+  const time = hhmm(now);
+  const plans = useCabinetReminders(cabinet?.id);
+  const marks = useDayIntakes(cabinet?.id, today);
+  const doses = useMemo(() => todayDoses(plans ?? [], marks, today, time), [plans, marks, today, time]);
+  const next = cabinet?.mode === 'with_intake' ? nextDose(doses) : null;
+  // «Ще N»: the day's doses still ahead after this one.
+  const ahead = doses.filter((d) => d !== next && (d.state === 'due' || d.state === 'later')).length;
 
   const steps = cabinet
     ? firstSteps({ withIntake: cabinet.mode === 'with_intake', medicineCount, reminderCount, later })
@@ -52,16 +75,20 @@ export default function Home() {
   const showSteps = !stepsFinished && !finishedNow;
   // The typed-routes generator lists /medicine/[id] as a static path on Windows, so it is cast.
   const openMedicine = (id: string) => router.push(`/medicine/${id}` as Href);
-  const medicineList = <MedicineList overview={list} onOpen={openMedicine} onTags={soon} />;
+  const nextCard = next ? (
+    <NextDoseCard dose={next} time={time} more={{ count: ahead, onPress: () => router.push('/today') }} />
+  ) : null;
+  const medicineList = <MedicineList overview={list} onOpen={openMedicine} onTags={() => router.push('/find')} />;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
+      <ScrollView contentContainerStyle={styles.content} scrollEnabled={!hintDue}>
+        <View style={styles.header} onLayout={(e) => setHeader(e.nativeEvent.layout)}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('home.switchCabinet')}
-            onPress={soon}
+            onPress={() => setSwitching(true)}
+            onLayout={(e) => setTitle(e.nativeEvent.layout)}
             style={styles.switcher}
           >
             <Text style={type.screenTitle} numberOfLines={1}>
@@ -70,7 +97,7 @@ export default function Home() {
             <Icon name="chevron-down" size={22} />
           </Pressable>
           <View style={styles.headerButtons}>
-            <Pressable accessibilityRole="button" accessibilityLabel={t('home.search')} onPress={soon} style={[styles.round, styles.roundSearch]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('home.search')} onPress={() => router.push('/find')} style={[styles.round, styles.roundSearch]}>
               <Icon name="search" size={20} color={colors.ink} />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={t('home.add')} onPress={find} style={[styles.round, styles.roundAdd]}>
@@ -94,7 +121,10 @@ export default function Home() {
                 <Text style={[type.bodyMedium, styles.muted]}>{t('home.placeholder')}</Text>
               </View>
             ) : (
-              medicineList
+              <>
+                {nextCard}
+                {medicineList}
+              </>
             )}
           </>
         ) : medicineCount === 0 ? (
@@ -110,12 +140,28 @@ export default function Home() {
             </View>
           </View>
         ) : (
-          medicineList
+          <>
+            {nextCard}
+            {medicineList}
+          </>
         )}
       </ScrollView>
+      {/* The hint comes on the Home of the second cabinet, just made, so the list is at its top. */}
+      {hintDue && header && title ? (
+        <Hint
+          text={t('home.switcherHint')}
+          top={insets.top + header.y + header.height + spacing.xs}
+          arrowLeft={Math.min(title.width / 2, HINT_ARROW_MAX)}
+          onClose={closeHint}
+        />
+      ) : null}
+      {switching ? <Switcher currentId={cabinet.id} onClose={() => setSwitching(false)} /> : null}
     </SafeAreaView>
   );
 }
+
+/** A long cabinet name: the arrow stays near its start, over the bubble. */
+const HINT_ARROW_MAX = 140;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },

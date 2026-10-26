@@ -3,6 +3,7 @@ import type { BottomTabBarButtonProps } from 'expo-router/tabs';
 import { StyleSheet, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useCurrentCabinet } from '@/data/cabinets';
 import { useT } from '@/i18n';
 import { Icon, type IconName } from '@/ui/Icon';
 import { motion, PressScale } from '@/ui/motion';
@@ -27,9 +28,14 @@ function TabButton({ style, children, android_ripple: _ripple, pressOpacity: _op
   );
 }
 
-/** Four tabs with icons and labels (design system, "Navigation"). */
+/**
+ * Four tabs with icons and labels (design system, "Navigation"). A cabinet
+ * that tracks only expiry has no doses, so no «Сьогодні».
+ */
 export default function TabsLayout() {
   const t = useT();
+  const cabinet = useCurrentCabinet();
+  const withIntake = cabinet?.mode !== 'expiry_only';
   // Room for the system buttons or the gesture bar under the tabs.
   const { bottom } = useSafeAreaInsets();
   return (
@@ -48,7 +54,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="home" options={{ title: t('tabs.cabinet'), tabBarIcon: tabIcon('first-aid-kit') }} />
-      <Tabs.Screen name="today" options={{ title: t('tabs.today'), tabBarIcon: tabIcon('calendar-check') }} />
+      <Tabs.Screen name="today" options={{ title: t('tabs.today'), tabBarIcon: tabIcon('calendar-check'), href: withIntake ? undefined : null }} />
       <Tabs.Screen name="shopping" options={{ title: t('tabs.shopping'), tabBarIcon: tabIcon('shopping-cart') }} />
       <Tabs.Screen name="settings" options={{ title: t('tabs.settings'), tabBarIcon: tabIcon('settings') }} />
     </Tabs>

@@ -1,4 +1,4 @@
-import { and, asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq, ne } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useMemo } from 'react';
 import { uuidv7 } from 'uuidv7';
@@ -10,6 +10,7 @@ import { packOrder, packToTake } from '@/domain/stock';
 
 import { db } from './db/client';
 import { intakes, medicineCategories, medicines, packages } from './db/schema';
+import { forgetRepeat, rescheduleDoses } from './notifications';
 
 export type Medicine = typeof medicines.$inferSelect;
 export type Package = typeof packages.$inferSelect;
@@ -194,12 +195,72 @@ export function usePacks(medicineId: string): Package[] {
   return useMemo(() => packOrder(data), [data]);
 }
 
-export function useMedicineCategories(medicineId: string): string[] {
-  const { data } = useLiveQuery(
+/** Undefined while loading, so an edit does not start from an empty set. */
+export function useMedicineCategories(medicineId: string): string[] | undefined {
+  const { data, updatedAt } = useLiveQuery(
     db.select().from(medicineCategories).where(eq(medicineCategories.medicineId, medicineId)),
     [medicineId],
   );
-  return useMemo(() => data.map((c) => c.category), [data]);
+  return useMemo(() => (updatedAt ? data.map((c) => c.category) : undefined), [data, updatedAt]);
+}
+
+/** What «Деталі» edits (docs/screens.md, "Medicine details"). Empty text is «не вказано». */
+export interface MedicineFields {
+  name: string;
+  form: MedicineForm | null;
+  strength: string;
+  inn: string;
+  manufacturer: string;
+  lowStockThreshold: number | null;
+  rx: boolean;
+  categories: string[];
+}
+
+export function medicineFields(m: Medicine, categories: readonly string[]): MedicineFields {
+  return {
+    name: m.name,
+    form: m.form,
+    strength: m.strength ?? '',
+    inn: m.inn ?? '',
+    manufacturer: m.manufacturer ?? '',
+    lowStockThreshold: m.lowStockThreshold,
+    rx: m.rx,
+    categories: [...categories],
+  };
+}
+
+/** «Зберегти» on «Деталі»: the medicine and its tags, all or nothing. */
+export async function updateMedicine(id: string, fields: MedicineFields): Promise<void> {
+  const text = (value: string) => value.trim() || null;
+  await db.transaction(async (tx) => {
+    await tx
+      .update(medicines)
+      .set({
+        name: fields.name.trim(),
+        form: fields.form,
+        strength: text(fields.strength),
+        inn: text(fields.inn),
+        manufacturer: text(fields.manufacturer),
+        lowStockThreshold: fields.lowStockThreshold,
+        rx: fields.rx,
+      })
+      .where(eq(medicines.id, id));
+    await writeCategories(tx, id, fields.categories);
+  });
+}
+
+/** «Зберегти» on Categories opened from a chip on the medicine. */
+export async function setMedicineCategories(id: string, categories: readonly string[]): Promise<void> {
+  await db.transaction((tx) => writeCategories(tx, id, categories));
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function writeCategories(tx: Tx, medicineId: string, categories: readonly string[]): Promise<void> {
+  await tx.delete(medicineCategories).where(eq(medicineCategories.medicineId, medicineId));
+  if (categories.length > 0) {
+    await tx.insert(medicineCategories).values(categories.map((category) => ({ medicineId, category })));
+  }
 }
 
 const now = () => new Date().toISOString();
@@ -235,8 +296,29 @@ export async function setPackExpiry(packageId: string, expires: string): Promise
   await db.update(packages).set({ expires }).where(eq(packages.id, packageId));
 }
 
-export async function disposePack(packageId: string): Promise<void> {
+/**
+ * Whether disposing this pack takes the medicine out of the cabinet: it is the
+ * last active one and none was used up. A used-up one keeps it as «Закінчилось».
+ */
+export async function disposeRemovesMedicine(medicineId: string, packageId: string): Promise<boolean> {
+  const kept = await db
+    .select({ id: packages.id })
+    .from(packages)
+    .where(and(eq(packages.medicineId, medicineId), ne(packages.status, 'disposed')));
+  return kept.every((p) => p.id === packageId);
+}
+
+/** «Утилізувати» on a pack; the last one takes the medicine with it (see above). */
+export async function disposePack(medicineId: string, packageId: string): Promise<void> {
+  if (await disposeRemovesMedicine(medicineId, packageId)) return deleteMedicine(medicineId);
   await db.update(packages).set({ status: 'disposed' }).where(eq(packages.id, packageId));
+  await rescheduleDoses();
+}
+
+/** The medicine with its packs, tags, reminders and intakes (by cascade); notifications are laid out again. */
+export async function deleteMedicine(id: string): Promise<void> {
+  await db.delete(medicines).where(eq(medicines.id, id));
+  await rescheduleDoses();
 }
 
 /**
@@ -273,4 +355,31 @@ export async function takeDose(input: {
       at: now(),
     });
   });
+  if (input.reminderId && input.due) await forgetRepeat(input.reminderId, input.due);
+}
+
+/**
+ * A dose marked taken by mistake: the mark goes and its pills go back into
+ * the pack they came from, which is active again if that emptied it.
+ */
+export async function untakeDose(input: { reminderId: string; due: string }): Promise<void> {
+  await db.transaction(async (tx) => {
+    const marks = await tx
+      .select()
+      .from(intakes)
+      .where(and(eq(intakes.reminderId, input.reminderId), eq(intakes.due, input.due), eq(intakes.status, 'taken')));
+    for (const mark of marks) {
+      if (mark.packageId) {
+        const [pack] = await tx.select().from(packages).where(eq(packages.id, mark.packageId));
+        if (pack && pack.quantity !== null && pack.status !== 'disposed') {
+          await tx
+            .update(packages)
+            .set({ quantity: pack.quantity + mark.dose, status: 'active' })
+            .where(eq(packages.id, pack.id));
+        }
+      }
+      await tx.delete(intakes).where(eq(intakes.id, mark.id));
+    }
+  });
+  await rescheduleDoses();
 }

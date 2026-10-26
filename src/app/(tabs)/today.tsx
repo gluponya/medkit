@@ -1,40 +1,27 @@
 import { router, type Href } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCurrentCabinet } from '@/data/cabinets';
-import { takeDose } from '@/data/medicines';
-import { snoozeDose } from '@/data/notifications';
+import { takeDose, untakeDose } from '@/data/medicines';
+import { deleteReminders } from '@/data/reminders';
 import { useCabinetReminders, useDayIntakes, type TodayReminder } from '@/data/today';
 import { localDay } from '@/domain/expiry';
 import { weekday } from '@/domain/reminders';
-import { daysLeft, minutesUntil, nextDose, todayDoses, type TodayDose } from '@/domain/today';
+import { daysLeft, nextDose, todayDoses, type TodayDose } from '@/domain/today';
 import { UNIT } from '@/features/add/labels';
+import { hhmm, NextDoseCard, useNow } from '@/features/today/NextDoseCard';
 import { useT } from '@/i18n';
 import { Button } from '@/ui/Button';
 import { Icon } from '@/ui/Icon';
+import { Group, Row } from '@/ui/Rows';
+import { Sheet } from '@/ui/Sheet';
 import { cardShadow, colors, radius, spacing } from '@/ui/theme';
 import { type } from '@/ui/typography';
 
-const soon = () => router.push('/soon');
 // Both «Додати нагадування» and «+ Додати» ask which medicine first.
 const addReminder = () => router.push({ pathname: '/pick-medicine', params: { from: 'today' } });
-
-/** How far «Пізніше» puts a dose off. */
-const SNOOZE_MINUTES = 30;
-
-const hhmm = (date: Date) => `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-
-/** The clock the screen reads, moved on every half minute so states and «через …» stay true. */
-function useNow(): Date {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(timer);
-  }, []);
-  return now;
-}
 
 /**
  * Today (docs/screens.md, 5-today): the day's doses in order with what became
@@ -51,7 +38,8 @@ export default function Today() {
   const marks = useDayIntakes(cabinet?.id, today);
   const doses = useMemo(() => todayDoses(plans ?? [], marks, today, time), [plans, marks, today, time]);
   const next = nextDose(doses);
-  const [snoozed, setSnoozed] = useState<{ due: string; at: string } | null>(null);
+  // The reminder whose «⋯» is open.
+  const [menu, setMenu] = useState<TodayReminder | null>(null);
 
   if (!cabinet || plans === undefined) return null;
 
@@ -65,21 +53,8 @@ export default function Today() {
   const unit = (r: TodayReminder) => t(UNIT[r.form ?? 'other']);
   const take = (d: TodayDose<TodayReminder>) =>
     takeDose({ medicineId: d.reminder.medicineId, dose: d.dose, reminderId: d.reminder.id, due: d.due });
-  const later = async (d: TodayDose<TodayReminder>) => {
-    const at = await snoozeDose(
-      { ...d.reminder, reminderId: d.reminder.id, time: d.time, dose: d.dose, due: d.due },
-      SNOOZE_MINUTES,
-    );
-    setSnoozed({ due: d.due, at: hhmm(at) });
-  };
   // The typed-routes generator lists /medicine/[id] as a static path on Windows, so it is cast.
   const openReminder = (medicineId: string) => router.push(`/medicine/${medicineId}/reminder` as Href);
-
-  const whenNext = (d: TodayDose<TodayReminder>) => {
-    if (d.state === 'due') return t('today.dueNow');
-    const left = minutesUntil(time, d.time);
-    return left < 60 ? t('today.inMinutes', { count: left }) : t('today.inHours', { count: Math.round(left / 60) });
-  };
 
   const summary = (r: TodayReminder) => {
     if (r.schedule === 'as_needed') return t('reminder.asNeeded');
@@ -97,6 +72,13 @@ export default function Today() {
   };
 
   const missed = (d: TodayDose<TodayReminder>) => d.state === 'missed' || d.state === 'skipped';
+
+  // From a menu a slip is easy, and the plan cannot be brought back: it asks first.
+  const turnOff = (r: TodayReminder) =>
+    Alert.alert(t('today.turnOffTitle', { name: r.name }), t('today.turnOffText'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('reminder.turnOff'), style: 'destructive', onPress: () => void deleteReminders(r.medicineId) },
+    ]);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -132,35 +114,7 @@ export default function Today() {
           <View style={styles.doses}>
             {doses.map((d) =>
               d === next ? (
-                <View key={d.due + d.reminder.id} style={styles.hero}>
-                  <Text style={[type.label, styles.heroSoft]}>{whenNext(d)}</Text>
-                  <Text style={styles.heroTime}>{d.time}</Text>
-                  <Text style={[type.sectionTitle, styles.white, styles.heroName]}>{d.reminder.name}</Text>
-                  <Text style={[type.body, styles.heroSoft]}>
-                    {t('medicine.amount', { count: d.dose, unit: unit(d.reminder) })}
-                  </Text>
-                  <View style={styles.heroButtons}>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => take(d)}
-                      style={({ pressed }) => [styles.heroTake, pressed && styles.pressed]}
-                    >
-                      <Icon name="check" size={22} color={colors.primary} strokeWidth={2.2} />
-                      <Text style={[type.button, styles.primary]}>{t('today.take')}</Text>
-                    </Pressable>
-                    {d.state === 'due' && (
-                      <Pressable
-                        accessibilityRole="button"
-                        onPress={() => later(d)}
-                        style={({ pressed }) => [styles.heroLater, pressed && styles.pressed]}
-                      >
-                        <Text style={[type.button, styles.white]}>
-                          {snoozed?.due === d.due ? t('today.snoozedTo', { time: snoozed.at }) : t('today.later')}
-                        </Text>
-                      </Pressable>
-                    )}
-                  </View>
-                </View>
+                <NextDoseCard key={d.due + d.reminder.id} dose={d} time={time} />
               ) : (
                 <View key={d.due + d.reminder.id} style={styles.dose}>
                   <Text style={[type.bodyMedium, styles.doseTime]}>{d.time}</Text>
@@ -176,9 +130,15 @@ export default function Today() {
                     {missed(d) && <Text style={[type.secondaryStrong, styles.danger]}>{t('today.missed')}</Text>}
                   </View>
                   {d.state === 'taken' ? (
-                    <View style={[styles.circle, styles.circleTaken]}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('today.markNotTaken')}
+                      onPress={() => void untakeDose({ reminderId: d.reminder.id, due: d.due })}
+                      hitSlop={8}
+                      style={({ pressed }) => [styles.circle, styles.circleTaken, pressed && styles.pressed]}
+                    >
                       <Icon name="check" size={20} color={colors.white} strokeWidth={2.4} />
-                    </View>
+                    </Pressable>
                   ) : (
                     <Pressable
                       accessibilityRole="button"
@@ -224,7 +184,7 @@ export default function Today() {
                     </View>
                     <Text style={type.label}>{summary(r)}</Text>
                   </View>
-                  <Pressable accessibilityRole="button" accessibilityLabel={t('common.more')} onPress={soon} hitSlop={8}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={t('common.more')} onPress={() => setMenu(r)} hitSlop={8}>
                     <View style={styles.vertical}>
                       <Icon name="dots" size={22} color={colors.inkMuted} />
                     </View>
@@ -235,6 +195,36 @@ export default function Today() {
           </>
         )}
       </ScrollView>
+      {menu ? (
+        <Sheet onClose={() => setMenu(null)}>
+          <Group>
+            <Row
+              icon="pencil"
+              label={t('today.editReminder')}
+              onPress={() => {
+                setMenu(null);
+                openReminder(menu.medicineId);
+              }}
+            />
+            <Row
+              icon="pill"
+              label={t('today.openMedicine')}
+              onPress={() => {
+                setMenu(null);
+                router.push({ pathname: '/medicine/[id]', params: { id: menu.medicineId } });
+              }}
+            />
+            <Row
+              icon="bell-off"
+              label={t('reminder.turnOff')}
+              onPress={() => {
+                setMenu(null);
+                turnOff(menu);
+              }}
+            />
+          </Group>
+        </Sheet>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -276,30 +266,6 @@ const styles = StyleSheet.create({
   circleTaken: { backgroundColor: colors.success },
   circleMissed: { borderWidth: 2, borderColor: colors.danger },
   circleOpen: { borderWidth: 2, borderColor: colors.line },
-  hero: { backgroundColor: colors.primary, borderRadius: 24, padding: spacing.lg, marginVertical: spacing.sm },
-  heroSoft: { color: colors.white, opacity: 0.8 },
-  heroTime: { ...type.hero, color: colors.white, fontSize: 48, lineHeight: 58 },
-  heroName: { fontSize: 22, lineHeight: 28 },
-  heroButtons: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
-  heroTake: {
-    flex: 1,
-    height: 52,
-    borderRadius: radius.button,
-    backgroundColor: colors.white,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  // White over the card's blue, as the design has it.
-  heroLater: {
-    height: 52,
-    paddingHorizontal: spacing.xl,
-    borderRadius: radius.button,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   titleRow: {
     marginTop: spacing.xxl,
     marginBottom: spacing.md,

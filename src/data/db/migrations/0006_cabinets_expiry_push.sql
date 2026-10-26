@@ -1,0 +1,1 @@
+ALTER TABLE `cabinets` ADD `expiry_push` integer DEFAULT true NOT NULL;

@@ -6,8 +6,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCurrentCabinet } from '@/data/cabinets';
 import { sameMedicine, useKnownMedicines } from '@/data/medicines';
 import { registerBrands, searchRegister, type RegisterEntry } from '@/data/register';
-import { brandOf, closeBrands, displayName, formWord, matchParts, singleInn, splitResults } from '@/domain/register';
+import {
+  brandOf,
+  closeBrands,
+  displayName,
+  formWord,
+  matchParts,
+  searchText,
+  singleInn,
+  splitResults,
+} from '@/domain/register';
 import { useDraft, type AfterAdd } from '@/features/add/draft';
+import { useChange } from '@/features/change/draft';
 import { FORM_NAME } from '@/features/add/labels';
 import { useT } from '@/i18n';
 import { BackBar } from '@/ui/BackBar';
@@ -26,17 +36,24 @@ const PAUSE_MS = 150;
  * that substance, and a brand opens its own search. Under the results, the
  * ways in for what is not there. Nothing found offers the names close to what
  * was typed («нуррфен» → «Нурофєн») and says why it may be missing.
+ * Opened from «Змінити ліки», a pick goes to the comparison instead (J9).
  */
 export default function SearchScreen() {
   const t = useT();
   const cabinet = useCurrentCabinet();
-  const known = useKnownMedicines(cabinet?.id);
   // then=reminder: opened from «Що нагадати прийняти?», so adding ends on the new reminder.
-  const { q, then } = useLocalSearchParams<{ q?: string; then?: string }>();
+  // change=<medicine id>: opened from «Змінити ліки».
+  const { q, then, change } = useLocalSearchParams<{ q?: string; then?: string; change?: string }>();
+  // The medicine being changed is not «Є в «Дім»» for itself.
+  const known = useKnownMedicines(cabinet?.id).filter((m) => m.id !== change);
   const after: AfterAdd = then === 'reminder' ? 'reminder' : 'medicine';
   const [query, setQuery] = useState(q ?? '');
   // The last search that came back; kept while the next one runs, so the list does not blink.
-  const [found, setFound] = useState<{ query: string; entries: RegisterEntry[]; close: string[] } | null>(null);
+  const [found, setFound] = useState<{
+    query: string;
+    entries: RegisterEntry[];
+    close: { brand: string; inn: string | null }[];
+  } | null>(null);
   const [failed, setFailed] = useState(false);
   const scroll = useRef<ScrollView>(null);
 
@@ -48,7 +65,11 @@ export default function SearchScreen() {
       searchRegister(text)
         .then(async (entries) => {
           // Nothing found is most often a typo: offer the names it is close to.
-          const close = entries.length === 0 ? closeBrands(text, await registerBrands()) : [];
+          const brands = entries.length === 0 ? closeBrands(text, await registerBrands()) : [];
+          // Each with its substance, so a name that looks right can be told by what is in it.
+          const close = await Promise.all(
+            brands.map(async (brand) => ({ brand, inn: singleInn((await searchRegister(brand, 1))[0]?.inn ?? null) })),
+          );
           if (!live) return;
           setFailed(false);
           setFound({ query: text, entries, close });
@@ -65,6 +86,11 @@ export default function SearchScreen() {
   }, [query]);
 
   const pick = (entry: RegisterEntry) => {
+    if (change) {
+      useChange.getState().set({ target: { name: displayName(entry.name), form: entry.form, register: entry } });
+      router.push({ pathname: '/medicine/[id]/change', params: { id: change } });
+      return;
+    }
     const draft = useDraft.getState();
     draft.reset();
     draft.set({ register: entry, name: displayName(entry.name), form: entry.form, then: after });
@@ -77,6 +103,11 @@ export default function SearchScreen() {
   };
 
   const byHand = () => {
+    if (change) {
+      useChange.getState().set({ target: null, name: query.trim(), form: null });
+      router.push({ pathname: '/medicine/[id]/change-name', params: { id: change } });
+      return;
+    }
     const draft = useDraft.getState();
     draft.reset();
     draft.set({ name: query.trim(), then: after });
@@ -98,10 +129,13 @@ export default function SearchScreen() {
   const { named, alsoContain } = splitResults(entries, shown?.query ?? '');
   // Only the very first search waits long: the Register is copied out of the app on first use.
   const waiting = query.trim() !== '' && found === null && !failed;
+  const close = nothing ? shown.close : [];
+  // «Є в «Дім»» on a brand row: any form of it is in the cabinet.
+  const hasBrand = (name: string) => known.some((m) => searchText(brandOf(m.name)) === searchText(brandOf(name)));
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <BackBar label={cabinet?.name ?? t('common.back')} />
+      <BackBar label={change ? t('common.back') : (cabinet?.name ?? t('common.back'))} />
       <ScrollView ref={scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={type.screenTitle}>{t('search.title')}</Text>
 
@@ -114,6 +148,7 @@ export default function SearchScreen() {
             placeholder={t('search.placeholder')}
             placeholderTextColor={colors.inkMuted}
             style={[type.input, styles.input]}
+            autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
             maxLength={80}
@@ -124,33 +159,44 @@ export default function SearchScreen() {
             </Pressable>
           ) : null}
         </View>
+        {!waiting && entries.length > 0 ? (
+          <Text style={[type.label, styles.hint]}>{t('search.hint')}</Text>
+        ) : close.length > 0 ? (
+          <Text style={[type.label, styles.hint]}>{t('search.noExact')}</Text>
+        ) : null}
 
         {waiting ? (
           <ActivityIndicator style={styles.waiting} color={colors.primary} size="large" />
         ) : failed && query.trim() ? (
           <Text style={[type.bodyMedium, styles.failed]}>{t('search.failed')}</Text>
+        ) : close.length > 0 ? (
+          <>
+            <Text style={[type.label, styles.alsoFirst]}>{t('search.close')}</Text>
+            <View style={styles.card}>
+              {close.map(({ brand, inn }, i) => (
+                <Fragment key={brand}>
+                  {i > 0 ? <View style={styles.divider} /> : null}
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => searchFor(brand)}
+                    style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                  >
+                    <View style={styles.fill}>
+                      <Text style={[type.sectionTitle, styles.name]}>{brand}</Text>
+                      {inn ? <Text style={type.label}>{inn}</Text> : null}
+                    </View>
+                    <Icon name="chevron-right" size={22} />
+                  </Pressable>
+                </Fragment>
+              ))}
+            </View>
+            <Text style={[type.label, styles.notListed]}>{t('search.notListed')}</Text>
+            <View style={styles.card}>
+              <WayIn icon="pencil" label={t('search.byHand')} onPress={byHand} />
+            </View>
+          </>
         ) : nothing && shown ? (
-          <View style={[styles.none, shown.close.length > 0 && styles.noneAfterClose]}>
-            {shown.close.length > 0 ? (
-              <>
-                <Text style={[type.label, styles.closeTitle]}>{t('search.close')}</Text>
-                <View style={[styles.card, styles.closeCard]}>
-                  {shown.close.map((brand, i) => (
-                    <Fragment key={brand}>
-                      {i > 0 ? <View style={styles.divider} /> : null}
-                      <Pressable
-                        accessibilityRole="button"
-                        onPress={() => searchFor(brand)}
-                        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-                      >
-                        <Text style={[type.sectionTitle, styles.fill]}>{brand}</Text>
-                        <Icon name="chevron-right" size={22} />
-                      </Pressable>
-                    </Fragment>
-                  ))}
-                </View>
-              </>
-            ) : null}
+          <View style={styles.none}>
             <View style={styles.noneMark}>
               <Icon name="zoom-question" size={36} />
             </View>
@@ -215,7 +261,14 @@ export default function SearchScreen() {
                         style={({ pressed }) => [styles.row, pressed && styles.pressed]}
                       >
                         <View style={styles.fill}>
-                          <Text style={[type.sectionTitle, styles.name]}>{brandOf(e.name)}</Text>
+                          <View style={styles.nameRow}>
+                            <Text style={[type.sectionTitle, styles.name]}>{brandOf(e.name)}</Text>
+                            {cabinet && hasBrand(e.name) ? (
+                              <View style={styles.chip}>
+                                <Text style={type.secondaryStrong}>{t('search.inCabinet', { cabinet: cabinet.name })}</Text>
+                              </View>
+                            ) : null}
+                          </View>
                           <Text style={type.label}>{singleInn(e.inn) ?? t('search.several')}</Text>
                         </View>
                         <Icon name="chevron-right" size={22} />
@@ -279,6 +332,7 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   results: { marginTop: spacing.xl },
+  hint: { marginTop: spacing.md, paddingHorizontal: spacing.xs },
   alsoFirst: { marginTop: spacing.xl, marginBottom: spacing.sm, paddingHorizontal: spacing.xs },
   row: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
   pressed: { backgroundColor: colors.surfaceSoft },
@@ -297,9 +351,6 @@ const styles = StyleSheet.create({
   notListed: { marginTop: spacing.xxl, marginBottom: spacing.sm, paddingHorizontal: spacing.xs },
   wayIn: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg },
   none: { marginTop: 64, alignItems: 'center' },
-  noneAfterClose: { marginTop: spacing.xl },
-  closeTitle: { alignSelf: 'stretch', marginBottom: spacing.sm, paddingHorizontal: spacing.xs },
-  closeCard: { alignSelf: 'stretch', marginBottom: spacing.xxl },
   noneMark: {
     width: 80,
     height: 80,

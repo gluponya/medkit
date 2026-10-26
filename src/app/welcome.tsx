@@ -30,8 +30,7 @@ export default function Welcome() {
       <View style={styles.bottom}>
         <Text style={[type.bodyMedium, styles.center, styles.muted]}>{t('welcome.local')}</Text>
         <Button label={t('welcome.start')} onPress={() => router.push('/place')} />
-        {/* Joining by invite comes with shared cabinets. */}
-        <Button label={t('welcome.invite')} icon="users" variant="secondary" onPress={() => router.push('/soon')} />
+        <Button label={t('welcome.invite')} icon="users" variant="secondary" onPress={() => router.push('/join-code')} />
         <Text style={[type.secondary, styles.center, styles.terms]}>
           {beforeTerms}
           <Text style={styles.link}>{t('welcome.termsLink')}</Text>

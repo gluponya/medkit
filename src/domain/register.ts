@@ -20,6 +20,16 @@ const FORM_WORDS: readonly [RegExp, MedicineForm][] = [
   [/^(мазь|крем|гель|паста|лінімент)/, 'ointment'],
   [/^(спрей|аерозоль)/, 'spray'],
   [/^(порошок|гранули)/, 'powder'],
+  [/^суспензі/, 'suspension'],
+  [/^(супозитор|песарі)/, 'suppositories'],
+  [/^(настойк|екстракт)/, 'tincture'],
+  [/^емульсі/, 'emulsion'],
+  [/^(трава|збір|листя|квітки|плоди|кореневищ|корен|кора|насіння)/, 'herbs'],
+  [/^пластир/, 'patch'],
+  // Powders and concentrates to be made into an injection, and solutions for one.
+  [/^(ліофілізат|ліофілізован|концентрат)/, 'injection'],
+  [/^розчин.*(ін\S?єкц|інфуз)/, 'injection'],
+  [/^(розчин|рідина)/, 'solution'],
 ];
 
 export function formFromRegister(formText: string): MedicineForm {
@@ -72,6 +82,14 @@ const PACK_UNIT: Record<MedicineForm, RegExp> = {
   ointment: /^г(?![а-яіїєґ])/,
   powder: /^(саше|пакет)/,
   other: /^(супозитор|саше|пакет|ампул|песар|пластир)/,
+  solution: /^мл(?![а-яіїєґ])/,
+  injection: /^(ампул|флакон|шприц)/,
+  suspension: /^мл(?![а-яіїєґ])/,
+  suppositories: /^(супозитор|песар)/,
+  tincture: /^мл(?![а-яіїєґ])/,
+  emulsion: /^мл(?![а-яіїєґ])/,
+  herbs: /^г(?![а-яіїєґ])/,
+  patch: /^пластир/,
 };
 
 /**
@@ -191,7 +209,7 @@ export function latinToCyrillic(word: string): string | null {
 }
 
 /** The typed words, each with its Cyrillic reading when typed in Latin. */
-function searchWords(text: string): string[][] {
+export function searchWords(text: string): string[][] {
   return searchText(text)
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean)
