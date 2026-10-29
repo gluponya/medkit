@@ -34,6 +34,8 @@ export async function addMedicine(input: {
   /** Null: «Не знаю». */
   expires: string | null;
   quantity: number | null;
+  /** The code scanned off the pack, if it was. */
+  gtin?: string | null;
   categories: readonly string[];
   register?: {
     id: string;
@@ -62,6 +64,7 @@ export async function addMedicine(input: {
       medicineId,
       expires: input.expires,
       quantity: input.quantity,
+      gtin: input.gtin ?? null,
     });
     if (input.categories.length > 0) {
       await tx
@@ -77,6 +80,7 @@ export async function addPackage(input: {
   medicineId: string;
   expires: string | null;
   quantity: number | null;
+  gtin?: string | null;
 }): Promise<Added> {
   const packageId = uuidv7();
   await db.insert(packages).values({
@@ -84,6 +88,7 @@ export async function addPackage(input: {
     medicineId: input.medicineId,
     expires: input.expires,
     quantity: input.quantity,
+    gtin: input.gtin ?? null,
   });
   return { medicineId: input.medicineId, packageId, isNew: false };
 }

@@ -72,6 +72,11 @@ export const packages = sqliteTable(
     quantity: integer('quantity'),
     openedAt: text('opened_at'),
     status: text('status').$type<PackageStatus>().notNull().default('active'),
+    /**
+     * The code scanned off the pack (docs/model.md, "Barcodes"), so «Змінити
+     * ліки» can correct what the code is. Kept on this phone only, not synced.
+     */
+    gtin: text('gtin'),
     createdAt: createdAt(),
   },
   (t) => [index('packages_medicine').on(t.medicineId)],

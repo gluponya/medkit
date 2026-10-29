@@ -69,8 +69,8 @@ export default function Home() {
   // The cabinets list is still loading, or the last one was just removed.
   if (!cabinet) return null;
 
-  const soon = () => router.push('/soon');
-  const find = () => router.push('/add/scan');
+  const scan = () => router.push('/add/scan');
+  const find = () => router.push('/add/search');
   const showSteps = !stepsFinished && !finishedNow;
   // The typed-routes generator lists /medicine/[id] as a static path on Windows, so it is cast.
   const openMedicine = (id: string) => router.push(`/medicine/${id}` as Href);
@@ -99,7 +99,7 @@ export default function Home() {
             <Pressable accessibilityRole="button" accessibilityLabel={t('home.search')} onPress={() => router.push('/find')} style={[styles.round, styles.roundSearch]}>
               <Icon name="search" size={20} color={colors.ink} />
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={t('home.add')} onPress={find} style={[styles.round, styles.roundAdd]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('home.add')} onPress={scan} style={[styles.round, styles.roundAdd]}>
               <Icon name="plus" size={22} color={colors.primary} />
             </Pressable>
           </View>
@@ -110,7 +110,7 @@ export default function Home() {
             <FirstSteps
               steps={steps}
               medicineCount={medicineCount}
-              onScan={soon}
+              onScan={scan}
               onFind={find}
               onAddReminder={() => router.push('/pick-medicine')}
             />
@@ -134,7 +134,7 @@ export default function Home() {
             <Text style={[type.sectionTitle, styles.emptyTitle]}>{t('home.emptyTitle')}</Text>
             <Text style={[type.bodyMedium, styles.muted, styles.center]}>{t('home.emptyText')}</Text>
             <View style={styles.emptyButtons}>
-              <Button label={t('home.scan')} icon="scan" onPress={soon} />
+              <Button label={t('home.scan')} icon="scan" onPress={scan} />
               <Button label={t('home.find')} icon="search" variant="secondary" onPress={find} />
             </View>
           </View>

@@ -64,6 +64,13 @@
       "when": 1792845244221,
       "tag": "0008_sync_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793271674249,
+      "tag": "0009_package_gtin",
+      "breakpoints": true
     }
   ]
 }

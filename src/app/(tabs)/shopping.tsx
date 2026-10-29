@@ -59,8 +59,8 @@ export default function Shopping() {
   const open = (l: ShoppingLine) => {
     if (l.medicineId) router.push(`/medicine/${l.medicineId}` as Href);
   };
-  // The scanner is not built yet, so a bought pack is added through the Register search,
-  // already searching for the line's name; «Ввести вручну» there keeps the name.
+  // The line already knows the name, so a bought pack is added through the Register search,
+  // already searching for it; «Ввести вручну» there keeps the name.
   const addPack = (l: ShoppingLine) => {
     useSession.getState().setCurrentCabinet(l.cabinetId);
     router.push({ pathname: '/add/search', params: { q: l.name } });

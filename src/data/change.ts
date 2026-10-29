@@ -1,8 +1,9 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 
 import { categoriesForAtc } from '@/domain/categories';
 import type { MedicineForm } from '@/domain/medicine';
 
+import { forgetCode, rememberCode } from './barcodes';
 import { db } from './db/client';
 import { intakes, medicineCategories, medicines, packages, reminders, shoppingItems } from './db/schema';
 import { rescheduleDoses } from './notifications';
@@ -21,6 +22,8 @@ export interface ChangeTarget {
  * medicine is comes from the new pick. Into a medicine the cabinet already
  * has, everything moves there and this one goes. Numbers in an old unit are
  * replaced by the answers to the questions after it, never converted.
+ * The codes scanned off its packs were picked wrong too: the map learns the
+ * new pick, or forgets the old one for a medicine typed by hand.
  * Returns the medicine to open.
  */
 export async function changeMedicine(input: {
@@ -37,6 +40,10 @@ export async function changeMedicine(input: {
   const { medicineId, target, mergeInto, quantities, dose } = input;
   const into = mergeInto ?? medicineId;
   const entry = target.register;
+  const scanned = await db
+    .selectDistinct({ gtin: packages.gtin })
+    .from(packages)
+    .where(and(eq(packages.medicineId, medicineId), isNotNull(packages.gtin)));
 
   await db.transaction(async (tx) => {
     for (const [packageId, quantity] of Object.entries(quantities)) {
@@ -83,6 +90,11 @@ export async function changeMedicine(input: {
       .where(eq(shoppingItems.medicineId, medicineId));
   });
 
+  for (const { gtin } of scanned) {
+    if (!gtin) continue;
+    if (entry) rememberCode(gtin, entry.id, null);
+    else forgetCode(gtin);
+  }
   await rescheduleDoses();
   return into;
 }

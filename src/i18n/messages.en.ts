@@ -368,6 +368,7 @@ export const en: Record<MessageKey, Message> = {
   'change.unitAll': 'Another form. Next we ask how many {unit} are in the packs and per dose.',
   'change.unitPacks': 'Another form. Next we ask how many {unit} are in the packs.',
   'change.unitDose': 'Another form. Next we ask how many {unit} per dose.',
+  'change.sizePacks': 'This medicine comes in other packs. Next we ask how many {unit} are in yours.',
   'change.mergeNote': '«{name}» leaves the list. Its expiry dates and intake history are kept.',
   'change.packTitle.tablets': 'How many tablets in this pack?',
   'change.packTitle.capsules': 'How many capsules in this pack?',

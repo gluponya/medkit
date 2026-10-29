@@ -7,7 +7,7 @@ import { useCabinets } from '@/data/cabinets';
 import { sameMedicine, useKnownMedicines, useMedicine, usePackCount, usePacks } from '@/data/medicines';
 import { useReminder } from '@/data/reminders';
 import type { MedicineForm } from '@/domain/medicine';
-import { formWord } from '@/domain/register';
+import { formWord, packSizes } from '@/domain/register';
 import { FORM_ICON, FORM_NAME, UNIT } from '@/features/add/labels';
 import { cancelChange, finishChange, unitChanged, useChange, type ChangeStep } from '@/features/change/draft';
 import { packsText, reminderWhen } from '@/features/change/text';
@@ -28,7 +28,8 @@ const same = (a: string | undefined, b: string | undefined) =>
  * Change medicine (docs/screens.md, J9): the old pick, grey, over the new one,
  * the words that differ struck out above and blue below, then what happens to
  * the packs and the reminder. A medicine the cabinet already has is joined
- * with «Об’єднати». A new unit asks the numbers again in the steps after it.
+ * with «Об’єднати». A new unit asks the numbers again in the steps after it;
+ * in the same unit, so do whole packs that hold what the new pick's packs never do.
  */
 export default function ChangeScreen() {
   const t = useT();
@@ -66,16 +67,33 @@ export default function ChangeScreen() {
   const toForm = mergeMedicine?.form ?? target.form;
   const changed = unitChanged(medicine.form, toForm);
   const reminderMoves = reminder !== null && !(merge && mergeReminder);
+  // 100 tablets left from the wrong pick, where the new one comes by 10 or 20:
+  // a whole pack must be one of its sizes, an opened one no more than the largest.
+  const sizes = entry ? packSizes(entry.formText, entry.form) : [];
+  const misfit = (q: number, opened: boolean) =>
+    sizes.length > 0 && (q > Math.max(...sizes) || (!opened && !sizes.includes(q)));
   const steps: ChangeStep[] = changed
     ? [
         ...packs.filter((p) => p.quantity !== null).map((pack) => ({ kind: 'pack' as const, pack })),
         ...(reminder && reminderMoves ? [{ kind: 'dose' as const, reminder }] : []),
       ]
-    : [];
+    : packs
+        .filter((p) => p.quantity !== null && misfit(p.quantity, p.openedAt !== null))
+        .map((pack) => ({ kind: 'pack' as const, pack }));
   const hasPackSteps = steps.some((s) => s.kind === 'pack');
   const hasDoseStep = steps.some((s) => s.kind === 'dose');
   const unit = t(UNIT[toForm]);
-  const unitNote = hasPackSteps && hasDoseStep ? 'change.unitAll' : hasPackSteps ? 'change.unitPacks' : hasDoseStep ? 'change.unitDose' : null;
+  const unitNote = !changed
+    ? hasPackSteps
+      ? 'change.sizePacks'
+      : null
+    : hasPackSteps && hasDoseStep
+      ? 'change.unitAll'
+      : hasPackSteps
+        ? 'change.unitPacks'
+        : hasDoseStep
+          ? 'change.unitDose'
+          : null;
 
   const go = async () => {
     useChange.getState().set({ mergeInto: merge?.id ?? null, unitChanged: changed, steps, quantities: {}, dose: null });

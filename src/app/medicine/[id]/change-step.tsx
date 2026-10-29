@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useMedicine } from '@/data/medicines';
+import { packSizes } from '@/domain/register';
 import { StepScreen } from '@/features/add/StepScreen';
 import { QUANTITY_TITLE, UNIT } from '@/features/add/labels';
 import { cancelChange, finishChange, useChange } from '@/features/change/draft';
@@ -99,6 +100,9 @@ export default function ChangeStepScreen() {
         : t('change.packOf', { until: t('home.until', { date: monthText(pack.expires) }) }),
       pack.openedAt ? t('medicine.opened') : t('medicine.whole'),
     ].join(', ');
+    // The new pick's own pack sizes when the Register lists them.
+    const sizes = target.register ? packSizes(target.register.formText, target.register.form).slice(0, 4) : [];
+    const presets = sizes.length > 0 ? sizes : (PACK_PRESETS[unitKey] ?? [10, 20, 30, 60]);
     const title = QUANTITY_TITLE[form].replace('add.quantityTitle', 'change.packTitle') as MessageKey;
 
     return (
@@ -124,7 +128,7 @@ export default function ChangeStepScreen() {
           <Text style={[type.bodyMedium, styles.unit]}>{unit}</Text>
         </View>
         <View style={styles.row}>
-          {(PACK_PRESETS[unitKey] ?? [10, 20, 30, 60]).map((value) => (
+          {presets.map((value) => (
             <View key={value} style={styles.cell}>
               <Tile label={String(value)} picked={quantity === value} onPress={() => pick(value)} height={52} />
             </View>

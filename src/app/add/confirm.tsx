@@ -94,14 +94,16 @@ export default function ConfirmScreen() {
     const quantity = draft.quantity;
     setSaving(true);
     try {
+      const gtin = useScan.getState().scan?.gtin ?? null;
       const added = existing
-        ? await addPackage({ medicineId: existing.id, expires, quantity })
+        ? await addPackage({ medicineId: existing.id, expires, quantity, gtin })
         : await addMedicine({
             cabinetId: cabinet.id,
             name: draft.name,
             form,
             expires,
             quantity,
+            gtin,
             categories: [],
             register: {
               id: entry.id,
@@ -111,8 +113,7 @@ export default function ConfirmScreen() {
               rx: entry.rx,
             },
           });
-      const { scan } = useScan.getState();
-      if (scan) rememberCode(scan.gtin, entry.id, quantity !== null && sizes.includes(quantity) ? quantity : null);
+      if (gtin) rememberCode(gtin, entry.id, quantity !== null && sizes.includes(quantity) ? quantity : null);
       finishAdd(added);
     } finally {
       setSaving(false);

@@ -94,7 +94,7 @@ One physical pack. Two packs of the same medicine can have different expiry date
 | quantity | Optional. In the form's unit (pieces for tablets, ml for liquids). Empty = not counted, the pack is just "there". |
 | opened_at | Never asked for tablets: set automatically when a pack is added with less than its full count (the date it was added), or on the first intake from it. Later, for drops and syrups that expire sooner once opened, the form asks for it, since it changes the expiry. |
 | status | `active`, `used_up`, `disposed`. Used-up and disposed packs stay for history but leave the list. Disposing the last pack of a medicine that never ran out (no `used_up` pack) removes the medicine from the cabinet, with its reminders; the app asks first. One that ran out stays as «Закінчилось». |
-| gtin | Optional. The barcode the pack was scanned from, so «Змінити ліки» can correct `barcode_map` (see "Changing what a medicine is"). |
+| gtin | Optional. The barcode the pack was scanned from, as an EAN-13, so «Змінити ліки» can correct `barcode_map` (see "Changing what a medicine is"). Kept on the phone that scanned it, not synced. |
 
 ### Reminder (only in `with_intake` cabinets)
 
@@ -289,6 +289,12 @@ nothing in the new one, and the app never converts them:
 - each reminder's dose is asked again, and the reminder sends no push until
   it is answered.
 
+In the same unit the numbers stay, except a pack that cannot be the new
+pick's: a whole pack holding none of the Register's pack sizes for it, or any
+pack holding more than the largest (100 tablets left from the wrong pick,
+where the new one comes by 10 or 20). Its quantity is asked again, with the
+new pick's pack sizes as tiles.
+
 If the new pick is already in this cabinet, the app offers to join them: the
 packs, reminders and intakes move to the existing medicine and this one is
 deleted. The dose question still applies when the units differ. A medicine
@@ -296,8 +302,11 @@ has one reminder, so when both have one, the one already there stays and the
 moved one is dropped (the comparison says «Нагадування буде як у «…»»).
 
 If a pack was added by barcode (`gtin` set), the pair in `barcode_map` was
-wrong too: the change withdraws this phone's confirmation of the old pair and
-confirms the new one. A pair nobody confirms any more is not trusted.
+wrong too. The person's pick is one row per code, so the change replaces it:
+the code now points to the new Register entry. Changed to a medicine typed
+by hand, the pick is withdrawn instead (`forget_barcode`), as there is no
+entry to point to. Only the packs this phone scanned carry the code, so a
+member who changes a medicine scanned on another phone corrects nothing.
 
 Only those who can edit medicines (owner, admin) see «Змінити ліки».
 
