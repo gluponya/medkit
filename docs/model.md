@@ -303,10 +303,19 @@ moved one is dropped (the comparison says «Нагадування буде як
 
 If a pack was added by barcode (`gtin` set), the pair in `barcode_map` was
 wrong too. The person's pick is one row per code, so the change replaces it:
-the code now points to the new Register entry. Changed to a medicine typed
-by hand, the pick is withdrawn instead (`forget_barcode`), as there is no
-entry to point to. Only the packs this phone scanned carry the code, so a
+the code now points to the new Register entry, or, changed to a medicine
+typed by hand, to its name and form. Only the packs this phone scanned carry the code, so a
 member who changes a medicine scanned on another phone corrects nothing.
+
+**One pack of several** (the owner, 2026-10-29): two boxes were added as
+«Нурофен», and one of them is really «Пантамак». The open pack has its own «⋯»
+with «Це інші ліки» (only when the medicine has more than one pack; with one,
+it is «Змінити ліки»). The same search, then the comparison titled «Це інші
+ліки»: the pack leaves for a medicine the cabinet already has («Об’єднати»),
+or for a new one made from the pick («Перенести»). Its date and count go with
+it, its quantity is asked again when the unit changes; the reminder, the
+intakes and the tags stay with the medicine it left. Its code learns the new
+pick. Ends on the medicine it went to, with «Упаковку перенесено».
 
 Only those who can edit medicines (owner, admin) see «Змінити ліки».
 
@@ -438,16 +447,23 @@ So:
 1. The scanner reads EAN-13 and GS1 DataMatrix. From a DataMatrix it also takes
    the expiry date.
 2. The barcode is looked up in a shared Supabase table `barcode_map`: one row
-   per person and code (gtin, user, register entry, pack size), their latest
+   per person and code (gtin, user, register entry or a typed name and form,
+   pack size), their latest
    pick, read and written only through `lookup_barcode` and
    `confirm_barcode`, so nobody sees who picked what. A lookup gives the entry
    most people picked, the asker's own pick first.
 3. On a miss, the user picks the medicine once (box photo or the Register
    search) and adds it; the pair is saved for everyone. Another person's pair
-   is trusted after two people picked it; one's own pick at once. The phone
+   is trusted at once for now, while users are few (the owner, 2026-10-29);
+   later, after two people picked it. One's own pick counts at once. The phone
    also keeps its own picks, so a code once added works offline.
    The pack size is saved only when the quantity added is one of the
    Register's pack sizes, a full pack.
+   A medicine the Register lacks, added by hand after a scan, saves the code
+   with its name and form. Typed names count as one pick when they match in
+   any case. The next scan of such a code opens the steps with the name and form
+   filled in, or, when the cabinet has a medicine of that name, adds a pack
+   to it.
 4. "Code not found" is a normal path, not an error: it offers a photo of the
    box first and the search next to it.
 

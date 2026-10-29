@@ -24,7 +24,7 @@ import { canEdit } from '@/domain/sharing';
 import { stockOf } from '@/domain/stock';
 import { FORM_ICON, FORM_NAME, UNIT } from '@/features/add/labels';
 import { startPack } from '@/features/add/pack';
-import { useChange } from '@/features/change/draft';
+import { startPackChange, useChange } from '@/features/change/draft';
 import { useCategoryName } from '@/features/categories/categories';
 import { shownStrength } from '@/features/medicine/strength';
 import { useT } from '@/i18n';
@@ -49,12 +49,14 @@ export default function MedicineScreen() {
   // added: the pack an add just made, for the «Додано» toast (docs/journeys.md, J2).
   // changed: «Змінити ліки» just ended here, for the «Ліки змінено» toast (J9).
   // moved: the cabinet it was just moved to, for «Перенесено в «…»».
-  const { id, added, isNew, changed, moved } = useLocalSearchParams<{
+  // packMoved: a pack of another medicine just came here, for «Упаковку перенесено».
+  const { id, added, isNew, changed, moved, packMoved } = useLocalSearchParams<{
     id: string;
     added?: string;
     isNew?: string;
     changed?: string;
     moved?: string;
+    packMoved?: string;
   }>();
   const [justAdded, setJustAdded] = useState(added ? { packageId: added, isNew: isNew === '1' } : null);
   // Opened by an add: until the screen is left, the footer offers what comes next, not «Прийняти».
@@ -65,7 +67,8 @@ export default function MedicineScreen() {
   const categories = useMedicineCategories(id) ?? [];
   const categoryName = useCategoryName();
   // One sheet at a time: «⋯», then the question it may lead to, in the same sheet.
-  const [sheet, setSheet] = useState<'menu' | 'delete' | Package | null>(null);
+  // A pack is «Утилізувати» of the last one; { pack } is that pack's «⋯».
+  const [sheet, setSheet] = useState<'menu' | 'delete' | Package | { pack: Package } | null>(null);
   const reminder = useReminder(id) ?? undefined;
   const cabinet = useCabinets()?.find((c) => c.id === medicine?.cabinetId);
   const [open, setOpen] = useState(0);
@@ -314,10 +317,23 @@ export default function MedicineScreen() {
                 {i > 0 ? <View style={styles.divider} /> : null}
                 {i === open ? (
                   <View style={[styles.pack, p.id === justAdded?.packageId && newPackStyle(i)]}>
-                    <View style={styles.packTitle}>
-                      <Text style={styles.packDate}>{until(p)}</Text>
-                      {badge(p.expires)}
-                      {p.id === justAdded?.packageId ? newBadge : null}
+                    <View style={styles.packHead}>
+                      <View style={[styles.packTitle, styles.fill]}>
+                        <Text style={styles.packDate}>{until(p)}</Text>
+                        {badge(p.expires)}
+                        {p.id === justAdded?.packageId ? newBadge : null}
+                      </View>
+                      {/* With one pack, «Змінити ліки» in the top «⋯» is the same thing. */}
+                      {edits && packs.length > 1 ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={t('common.more')}
+                          onPress={() => setSheet({ pack: p })}
+                          hitSlop={12}
+                        >
+                          <Icon name="dots" size={24} color={colors.ink} />
+                        </Pressable>
+                      ) : null}
                     </View>
                     <Text style={type.label}>{packLine(p, i === 0)}</Text>
                     {p.expires === null && edits ? (
@@ -404,6 +420,12 @@ export default function MedicineScreen() {
             onHide={() => router.setParams({ changed: undefined })}
             bottom={spacing.md}
           />
+        ) : packMoved ? (
+          <Toast
+            text={t('change.packDone')}
+            onHide={() => router.setParams({ packMoved: undefined })}
+            bottom={spacing.md}
+          />
         ) : moved ? (
           <Toast
             text={t('move.done', { cabinet: moved })}
@@ -446,6 +468,25 @@ export default function MedicineScreen() {
               onConfirm={() => void leave(() => deleteMedicine(medicine.id))}
               onClose={() => setSheet(null)}
             />
+          ) : sheet !== 'menu' && 'pack' in sheet ? (
+            <>
+              <Text style={type.sectionTitle}>
+                {sheet.pack.expires === null ? t('change.packUnknown') : t('change.packOf', { until: until(sheet.pack) })}
+              </Text>
+              <Text style={type.label}>
+                {sheet.pack.quantity === null
+                  ? medicine.name
+                  : `${medicine.name}, ${t('medicine.amount', { count: sheet.pack.quantity, unit })}`}
+              </Text>
+              <Group>
+                <Row
+                  icon="arrows-split"
+                  label={t('change.packOther')}
+                  hint={t('change.packOtherText')}
+                  onPress={fromMenu(() => startPackChange(medicine.id, sheet.pack.id, medicine.name))}
+                />
+              </Group>
+            </>
           ) : sheet !== 'menu' ? (
             <Confirm
               title={t('medicine.disposeLastTitle')}
@@ -588,6 +629,7 @@ const styles = StyleSheet.create({
   },
   white: { color: colors.white },
   bottom: { zIndex: 10 },
+  packHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   packTitle: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   packDate: { ...type.sectionTitle, fontSize: 18 },
   badge: {

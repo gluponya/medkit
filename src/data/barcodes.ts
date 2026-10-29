@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import type { MedicineForm } from '@/domain/medicine';
+
 import { hasBackend, signedIn, supabase } from './remote/client';
 
 /**
@@ -9,25 +11,39 @@ import { hasBackend, signedIn, supabase } from './remote/client';
  * server, and this phone's own picks kept here too, so a code once found
  * works at once next time, with no network.
  */
+
+/** A Register entry, or a medicine typed by hand: its name and form. */
+export type CodePick =
+  | { registerId: string; packSize: number | null }
+  | { registerId: null; name: string; form: MedicineForm; packSize: number | null };
+
 export type CodeAnswer =
-  | { kind: 'known'; registerId: string; packSize: number | null }
+  | ({ kind: 'known' } & CodePick)
   | { kind: 'unknown' }
   /** No network, or no server in this build. */
   | { kind: 'offline' };
 
-/** Someone else's pick is trusted once this many people made it. */
-const TRUSTED = 2;
+/**
+ * Someone else's pick is trusted once this many people made it. One while
+ * there are few users (the owner, 2026-10-29), so a code helps at once.
+ */
+const TRUSTED = 1;
 
-type OwnCode = { registerId: string; packSize: number | null };
-
-const useOwnCodes = create<{ codes: Record<string, OwnCode> }>()(
-  persist(() => ({ codes: {} as Record<string, OwnCode> }), {
+const useOwnCodes = create<{ codes: Record<string, CodePick> }>()(
+  persist(() => ({ codes: {} as Record<string, CodePick> }), {
     name: 'barcodes',
     storage: createJSONStorage(() => AsyncStorage),
   }),
 );
 
-type Row = { register_id: string; pack_size: number | null; confirmations: number; mine: boolean };
+type Row = {
+  register_id: string | null;
+  name: string | null;
+  form: MedicineForm | null;
+  pack_size: number | null;
+  confirmations: number;
+  mine: boolean;
+};
 
 export async function lookupCode(gtin: string): Promise<CodeAnswer> {
   const own = useOwnCodes.getState().codes[gtin];
@@ -39,7 +55,11 @@ export async function lookupCode(gtin: string): Promise<CodeAnswer> {
     if (error) throw error;
     const row = (data as Row[] | null)?.[0];
     if (!row || !(row.mine || row.confirmations >= TRUSTED)) return { kind: 'unknown' };
-    return { kind: 'known', registerId: row.register_id, packSize: row.pack_size };
+    if (row.register_id) return { kind: 'known', registerId: row.register_id, packSize: row.pack_size };
+    if (row.name && row.form) {
+      return { kind: 'known', registerId: null, name: row.name, form: row.form, packSize: row.pack_size };
+    }
+    return { kind: 'unknown' };
   } catch (e) {
     if (__DEV__) console.warn('barcode lookup failed:', e);
     return { kind: 'offline' };
@@ -47,36 +67,25 @@ export async function lookupCode(gtin: string): Promise<CodeAnswer> {
 }
 
 /**
- * The person added this code as this Register entry: kept on the phone and
- * sent to the map. Sending is not waited for; a pick that cannot be sent now
- * still works here.
+ * The person added this code as this medicine: kept on the phone and sent to
+ * the map, replacing their earlier pick. Sending is not waited for; a pick
+ * that cannot be sent now still works here.
  */
-export function rememberCode(gtin: string, registerId: string, packSize: number | null): void {
-  useOwnCodes.setState((s) => ({ codes: { ...s.codes, [gtin]: { registerId, packSize } } }));
-  send('confirm_barcode', { p_gtin: gtin, p_register_id: registerId, p_pack_size: packSize });
-}
-
-/**
- * The person's pick for this code was wrong and there is no Register entry
- * to put instead («Змінити ліки» to one typed by hand): it goes, here and on
- * the server. Other people's picks stay.
- */
-export function forgetCode(gtin: string): void {
-  useOwnCodes.setState((s) => {
-    const { [gtin]: _gone, ...codes } = s.codes;
-    return { codes };
-  });
-  send('forget_barcode', { p_gtin: gtin });
-}
-
-/** Tells the map, not waited for; what cannot be sent now still holds on this phone. */
-function send(fn: 'confirm_barcode' | 'forget_barcode', args: Record<string, unknown>): void {
+export function rememberCode(gtin: string, pick: CodePick): void {
+  useOwnCodes.setState((s) => ({ codes: { ...s.codes, [gtin]: pick } }));
   if (!hasBackend) return;
+  const typed = pick.registerId === null ? pick : null;
   void (async () => {
     await signedIn();
-    const { error } = await supabase.rpc(fn, args);
+    const { error } = await supabase.rpc('confirm_barcode', {
+      p_gtin: gtin,
+      p_register_id: pick.registerId,
+      p_name: typed?.name.trim() ?? null,
+      p_form: typed?.form ?? null,
+      p_pack_size: pick.packSize,
+    });
     if (error) throw error;
   })().catch((e: unknown) => {
-    if (__DEV__) console.warn(`${fn} failed:`, e);
+    if (__DEV__) console.warn('barcode confirm failed:', e);
   });
 }

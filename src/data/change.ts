@@ -1,9 +1,10 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
+import { uuidv7 } from 'uuidv7';
 
 import { categoriesForAtc } from '@/domain/categories';
 import type { MedicineForm } from '@/domain/medicine';
 
-import { forgetCode, rememberCode } from './barcodes';
+import { rememberCode } from './barcodes';
 import { db } from './db/client';
 import { intakes, medicineCategories, medicines, packages, reminders, shoppingItems } from './db/schema';
 import { rescheduleDoses } from './notifications';
@@ -23,7 +24,7 @@ export interface ChangeTarget {
  * has, everything moves there and this one goes. Numbers in an old unit are
  * replaced by the answers to the questions after it, never converted.
  * The codes scanned off its packs were picked wrong too: the map learns the
- * new pick, or forgets the old one for a medicine typed by hand.
+ * new pick.
  * Returns the medicine to open.
  */
 export async function changeMedicine(input: {
@@ -92,8 +93,71 @@ export async function changeMedicine(input: {
 
   for (const { gtin } of scanned) {
     if (!gtin) continue;
-    if (entry) rememberCode(gtin, entry.id, null);
-    else forgetCode(gtin);
+    rememberCode(
+      gtin,
+      entry
+        ? { registerId: entry.id, packSize: null }
+        : { registerId: null, name: target.name.trim(), form: target.form, packSize: null },
+    );
+  }
+  await rescheduleDoses();
+  return into;
+}
+
+/**
+ * «Це інші ліки» on one pack (docs/model.md, "Changing what a medicine is"):
+ * one box of several was picked wrong. The pack leaves this medicine for the
+ * one it really is: a medicine the cabinet already has, or a new one made from
+ * the pick. Its date and count go with it; the reminder, the intakes and the
+ * tags stay here, with the boxes that were right. Its code learns the new pick.
+ * Returns the medicine to open.
+ */
+export async function movePack(input: {
+  packageId: string;
+  target: ChangeTarget;
+  mergeInto: string | null;
+  /** Its quantity in the new unit, when it was asked; null is «Не рахувати, просто є». */
+  quantity?: number | null;
+}): Promise<string> {
+  const { packageId, target, mergeInto } = input;
+  const entry = target.register;
+  const [pack] = await db.select().from(packages).where(eq(packages.id, packageId));
+  if (!pack) throw new Error(`pack ${packageId} is gone`);
+  const [from] = await db.select({ cabinetId: medicines.cabinetId }).from(medicines).where(eq(medicines.id, pack.medicineId));
+  if (!from) throw new Error(`medicine ${pack.medicineId} is gone`);
+  const into = mergeInto ?? uuidv7();
+
+  await db.transaction(async (tx) => {
+    if (!mergeInto) {
+      await tx.insert(medicines).values({
+        id: into,
+        cabinetId: from.cabinetId,
+        name: target.name.trim(),
+        form: target.form,
+        inn: entry?.inn ?? null,
+        strength: entry?.strength ?? null,
+        manufacturer: entry?.manufacturer ?? null,
+        rx: entry?.rx ?? false,
+        registerId: entry?.id ?? null,
+      });
+      const atc = entry ? categoriesForAtc(entry.atc) : [];
+      if (atc.length > 0) {
+        await tx.insert(medicineCategories).values(atc.map((category) => ({ medicineId: into, category })));
+      }
+    }
+    await tx
+      .update(packages)
+      .set({ medicineId: into, ...(input.quantity !== undefined ? { quantity: input.quantity } : {}) })
+      .where(eq(packages.id, packageId));
+  });
+
+  if (pack.gtin) {
+    rememberCode(
+      pack.gtin,
+      entry
+        ? { registerId: entry.id, packSize: null }
+        : { registerId: null, name: target.name.trim(), form: target.form, packSize: null },
+    );
   }
   await rescheduleDoses();
   return into;

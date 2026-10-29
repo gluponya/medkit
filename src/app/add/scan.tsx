@@ -16,7 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { lookupCode } from '@/data/barcodes';
 import { useCurrentCabinet } from '@/data/cabinets';
-import { undoAdd } from '@/data/medicines';
+import { sameMedicine, undoAdd, useKnownMedicines } from '@/data/medicines';
 import { getRegisterEntry } from '@/data/register';
 import { useSession } from '@/data/session';
 import { OPEN_GATE, passScan, readScan, type Scan } from '@/domain/barcode';
@@ -38,7 +38,9 @@ type Miss = 'unknown' | 'offline';
 /**
  * Scanner (3-scanner, docs/journeys.md, J2): the camera reads an EAN-13 or a
  * DataMatrix. A known code opens «Додати в «…»» with the medicine, and the
- * expiry when the DataMatrix has it; an unknown one brings up «Ми ще не знаємо
+ * expiry when the DataMatrix has it; one known as a medicine typed by hand
+ * opens the steps with its name and form filled in, or adds a pack to the
+ * cabinet's medicine of that name. An unknown one brings up «Ми ще не знаємо
  * цей код» with the box photo and the search. In «Кілька поспіль» each add
  * comes back here with a toast, ready for the next pack.
  */
@@ -49,6 +51,7 @@ export default function ScanScreen() {
   const { then } = useLocalSearchParams<{ then?: string }>();
   const after: AfterAdd = then === 'reminder' ? 'reminder' : 'medicine';
   const cabinet = useCurrentCabinet();
+  const known = useKnownMedicines(cabinet?.id);
   const [permission, requestPermission] = useCameraPermissions();
   const [focused, setFocused] = useState(true);
   const [torch, setTorch] = useState(false);
@@ -57,7 +60,8 @@ export default function ScanScreen() {
   // The chip's place on the screen, for the hint: the bottom area's top plus the chip's place in it.
   const [footTop, setFootTop] = useState<number | null>(null);
   const [chip, setChip] = useState<LayoutRectangle | null>(null);
-  const many = useScan((s) => s.many);
+  const many = useSession((s) => s.scanMany);
+  const setMany = useSession((s) => s.setScanMany);
   const added = useScan((s) => s.added);
   const hintSeen = useSession((s) => s.scanHintSeen);
   const closeHint = useSession((s) => s.closeScanHint);
@@ -66,7 +70,7 @@ export default function ScanScreen() {
 
   useEffect(() => {
     useScan.getState().set({ open: true });
-    return () => useScan.getState().set({ open: false, scan: null, added: null, many: false });
+    return () => useScan.getState().set({ open: false, scan: null, added: null });
   }, []);
 
   // Back here, the last pack is done with, and the camera is this screen's
@@ -96,24 +100,34 @@ export default function ScanScreen() {
     setLooking(true);
     try {
       const answer = await lookupCode(scan.gtin);
+      if (answer.kind !== 'known') {
+        setMiss(answer.kind);
+        return;
+      }
+      // Typed by hand: the cabinet may have it under that name, from the Register or not.
+      const same = answer.registerId === null ? sameMedicine(known, '', answer.name) : null;
+      const registerId = answer.registerId ?? same?.registerId ?? null;
       // A code whose entry left the Register is as good as unknown.
-      const entry = answer.kind === 'known' ? await getRegisterEntry(answer.registerId) : null;
-      if (!entry) {
-        setMiss(answer.kind === 'offline' ? 'offline' : 'unknown');
+      const entry = registerId ? await getRegisterEntry(registerId) : null;
+      if (registerId && !entry) {
+        setMiss('unknown');
         return;
       }
       const draft = useDraft.getState();
       draft.reset();
       draft.set({
-        register: entry,
-        name: displayName(entry.name),
-        form: entry.form,
         then: after,
         year: scan.expires?.year ?? null,
         month: scan.expires?.month ?? null,
-        quantity: answer.kind === 'known' ? answer.packSize : null,
+        quantity: answer.packSize,
       });
-      router.push('/add/confirm');
+      if (entry) {
+        draft.set({ register: entry, name: displayName(entry.name), form: entry.form });
+        router.push('/add/confirm');
+      } else if (answer.registerId === null) {
+        draft.set({ name: answer.name, form: answer.form, packFor: same?.id ?? null });
+        router.push(same ? '/add/expiry' : '/add/name');
+      }
     } catch (e) {
       console.error('scan lookup failed:', e);
       setMiss('offline');
@@ -227,7 +241,7 @@ export default function ScanScreen() {
             onLayout={(e) => setChip(e.nativeEvent.layout)}
             accessibilityRole="switch"
             accessibilityState={{ checked: many }}
-            onPress={() => useScan.getState().set({ many: !many })}
+            onPress={() => setMany(!many)}
             style={({ pressed }) => [styles.chip, many && styles.chipOn, pressed && styles.pressed]}
           >
             <Icon name="stack" size={20} color={many ? colors.night : colors.white} />

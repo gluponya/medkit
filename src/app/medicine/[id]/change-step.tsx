@@ -37,6 +37,7 @@ export default function ChangeStepScreen() {
   const { id, step: stepParam } = useLocalSearchParams<{ id: string; step: string }>();
   const steps = useChange((s) => s.steps);
   const mergeInto = useChange((s) => s.mergeInto);
+  const moving = useChange((s) => s.packId !== null);
   const target = useChange((s) => s.target);
   const into = useMedicine(mergeInto ?? '');
   const n = Number(stepParam);
@@ -69,7 +70,7 @@ export default function ChangeStepScreen() {
     }
   };
   const nextButton = (ready: boolean) => ({
-    label: last ? (mergeInto ? t('change.merge') : t('change.change')) : t('common.next'),
+    label: last ? (mergeInto ? t('change.merge') : moving ? t('change.move') : t('change.change')) : t('common.next'),
     onPress: () => void next(),
     disabled: !ready || saving,
   });

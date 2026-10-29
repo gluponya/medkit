@@ -113,7 +113,9 @@ export default function ConfirmScreen() {
               rx: entry.rx,
             },
           });
-      if (gtin) rememberCode(gtin, entry.id, quantity !== null && sizes.includes(quantity) ? quantity : null);
+      if (gtin) {
+        rememberCode(gtin, { registerId: entry.id, packSize: quantity !== null && sizes.includes(quantity) ? quantity : null });
+      }
       finishAdd(added);
     } finally {
       setSaving(false);

@@ -66,7 +66,8 @@ cabinet with its expiry date.
    few seconds (removes what was just added). «Нагадування» is one tap away
    there, so adding never asks about reminders. Until she leaves it, the
    footer there is «Додати ще» and «Готово» (→ Home), not «Прийняти». In the «Кілька поспіль» mode
-   she stays on `[Scanner]` instead, a toast after each pack.
+   she stays on `[Scanner]` instead, a toast after each pack. The mode stays as she left
+   it, the next time too.
 5. Adding started from «Додати нагадування» (see J3) → `[New reminder]` for
    that medicine instead of `[Medicine]`; saving it ends on `[Medicine]`.
 
@@ -203,6 +204,12 @@ medicine she really has, without typing everything again.
 5. Already has «Нурофен для дітей» in this cabinet → step 3 offers «Об’єднати»
    instead: the packs and reminders move there.
 6. → `[Medicine]` «Нурофен для дітей» with the same packs, a «Змінено» toast.
+
+**One pack only:** two boxes went in as «Нурофен», and one is «Пантамак».
+On `[Medicine]` she opens that pack → its «⋯» → «Це інші ліки» → the same
+search → `[Change medicine]` titled «Це інші ліки»: what the pack becomes,
+«Термін і кількість залишаться» and «Нурофен» залишиться». «Перенести» (or
+«Об’єднати») → `[Medicine]` «Пантамак» with «Упаковку перенесено».
 
 **Friction:** a reminder that keeps firing in the old unit (it waits for the
 new dose instead); a barcode that keeps mapping to the wrong medicine (her

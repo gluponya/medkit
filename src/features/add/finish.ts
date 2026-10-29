@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 
 import type { Added } from '@/data/medicines';
 import { askForNotifications, rescheduleDoses } from '@/data/notifications';
+import { useSession } from '@/data/session';
 
 import { useDraft } from './draft';
 import { useScan } from './scan';
@@ -19,7 +20,7 @@ export function finishAdd(added: Added): void {
   reset();
   void askForNotifications().then(rescheduleDoses);
   const scan = useScan.getState();
-  if (then === 'medicine' && scan.many && scan.open) {
+  if (then === 'medicine' && scan.open && useSession.getState().scanMany) {
     scan.set({ added: { ...added, name } });
     router.dismissTo('/add/scan');
     return;

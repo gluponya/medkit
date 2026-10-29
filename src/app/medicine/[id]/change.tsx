@@ -10,7 +10,7 @@ import type { MedicineForm } from '@/domain/medicine';
 import { formWord, packSizes } from '@/domain/register';
 import { FORM_ICON, FORM_NAME, UNIT } from '@/features/add/labels';
 import { cancelChange, finishChange, unitChanged, useChange, type ChangeStep } from '@/features/change/draft';
-import { packsText, reminderWhen } from '@/features/change/text';
+import { packsText, packText, reminderWhen } from '@/features/change/text';
 import { shownStrength } from '@/features/medicine/strength';
 import { useT } from '@/i18n';
 import { BackBar } from '@/ui/BackBar';
@@ -30,13 +30,19 @@ const same = (a: string | undefined, b: string | undefined) =>
  * the packs and the reminder. A medicine the cabinet already has is joined
  * with «Об’єднати». A new unit asks the numbers again in the steps after it;
  * in the same unit, so do whole packs that hold what the new pick's packs never do.
+ * For «Це інші ліки» on one pack, only that pack moves and the medicine stays.
  */
 export default function ChangeScreen() {
   const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const target = useChange((s) => s.target);
+  const packId = useChange((s) => s.packId);
   const medicine = useMedicine(id);
-  const packs = usePacks(id);
+  const allPacks = usePacks(id);
+  // One pack moving: the questions and the lines are about it alone.
+  const moving = packId ? allPacks.find((p) => p.id === packId) : undefined;
+  const packs = moving ? [moving] : allPacks;
+  const rest = allPacks.filter((p) => p !== moving);
   const reminder = useReminder(id) ?? null;
   const cabinet = useCabinets()?.find((c) => c.id === medicine?.cabinetId);
   const known = useKnownMedicines(cabinet?.id).filter((m) => m.id !== id);
@@ -47,7 +53,7 @@ export default function ChangeScreen() {
   const [saving, setSaving] = useState(false);
 
   // The flow was finished or dropped under the screen.
-  if (!medicine || !target) return null;
+  if (!medicine || !target || (packId && !moving)) return null;
 
   const formText = (form: MedicineForm, text?: string) =>
     form === 'other' ? (formWord(text ?? '') ?? t(FORM_NAME.other).toLocaleLowerCase()) : t(FORM_NAME[form]).toLocaleLowerCase();
@@ -66,7 +72,7 @@ export default function ChangeScreen() {
   // Into a medicine already there, the numbers must fit that one's unit.
   const toForm = mergeMedicine?.form ?? target.form;
   const changed = unitChanged(medicine.form, toForm);
-  const reminderMoves = reminder !== null && !(merge && mergeReminder);
+  const reminderMoves = !moving && reminder !== null && !(merge && mergeReminder);
   // 100 tablets left from the wrong pick, where the new one comes by 10 or 20:
   // a whole pack must be one of its sizes, an opened one no more than the largest.
   const sizes = entry ? packSizes(entry.formText, entry.form) : [];
@@ -110,14 +116,26 @@ export default function ChangeScreen() {
   };
 
   const lines: { icon: IconName; tone: string; title: string; text: string }[] = [];
-  if (packs.length > 0) {
+  if (moving) {
+    lines.push(
+      merge
+        ? { icon: 'arrow-merge', tone: colors.primary, title: t('change.packJoins', { name: merge.name }), text: t('change.packsTotal', { count: 1 + mergePacks }) }
+        : { icon: 'circle-check', tone: colors.success, title: t('change.packKeeps'), text: packText(t, moving, t(UNIT[medicine.form ?? 'other'])) },
+      {
+        icon: 'circle-check',
+        tone: colors.success,
+        title: t('change.oldStays', { name: medicine.name }),
+        text: reminder ? t('change.withReminder', { packs: packsText(t, rest) }) : packsText(t, rest),
+      },
+    );
+  } else if (packs.length > 0) {
     lines.push(
       merge
         ? { icon: 'arrow-merge', tone: colors.primary, title: t('change.packsMove'), text: t('change.packsTotal', { count: packs.length + mergePacks }) }
         : { icon: 'circle-check', tone: colors.success, title: t('change.packsStay'), text: packsText(t, packs) },
     );
   }
-  if (reminder) {
+  if (reminder && !moving) {
     lines.push(
       !merge
         ? { icon: 'circle-check', tone: colors.success, title: t('change.reminderStays'), text: reminderWhen(t, reminder) }
@@ -138,11 +156,11 @@ export default function ChangeScreen() {
         }
       />
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={type.screenTitle}>{t('change.title')}</Text>
+        <Text style={type.screenTitle}>{moving ? t('change.packOther') : t('change.title')}</Text>
         <Text style={[type.bodyMedium, styles.muted, styles.subtitle]}>{t('change.subtitle')}</Text>
 
         <View style={[styles.card, styles.was]}>
-          <Text style={type.secondary}>{t('change.was')}</Text>
+          <Text style={type.secondary}>{moving ? packText(t, moving, t(UNIT[medicine.form ?? 'other']), true) : t('change.was')}</Text>
           <View style={styles.head}>
             <View style={[styles.mark, styles.markWas]}>
               <Icon name={FORM_ICON[medicine.form ?? 'other']} size={26} color={colors.inkMuted} />
@@ -196,11 +214,11 @@ export default function ChangeScreen() {
           </View>
         ) : null}
 
-        {merge ? <Note text={t('change.mergeNote', { name: medicine.name })} /> : null}
+        {merge && !moving ? <Note text={t('change.mergeNote', { name: medicine.name })} /> : null}
         {unitNote ? <Note text={t(unitNote, { unit })} /> : null}
       </ScrollView>
       <View style={styles.footer}>
-        <Button label={merge ? t('change.merge') : t('change.change')} onPress={() => void go()} disabled={saving} />
+        <Button label={merge ? t('change.merge') : moving ? t('change.move') : t('change.change')} onPress={() => void go()} disabled={saving} />
       </View>
     </SafeAreaView>
   );

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { create } from 'zustand';
 
-import { changeMedicine, type ChangeTarget } from '@/data/change';
+import { changeMedicine, movePack, type ChangeTarget } from '@/data/change';
 import type { Package } from '@/data/medicines';
 import type { Reminder } from '@/data/reminders';
 import type { MedicineForm } from '@/domain/medicine';
@@ -17,6 +17,8 @@ export type ChangeStep = { kind: 'pack'; pack: Package } | { kind: 'dose'; remin
  */
 interface ChangeState {
   medicineId: string | null;
+  /** «Це інші ліки» on one pack: only it moves, the medicine stays. */
+  packId: string | null;
   target: ChangeTarget | null;
   /** By hand: the name and form typed so far. */
   name: string;
@@ -33,6 +35,7 @@ interface ChangeState {
 
 const EMPTY = {
   medicineId: null,
+  packId: null,
   target: null,
   name: '',
   form: null,
@@ -62,10 +65,32 @@ export function cancelChange(): void {
   else router.back();
 }
 
-/** Saves the change and opens the medicine it ended as, with the «Ліки змінено» toast. */
+/** «Це інші ліки» on a pack: the search for what it really is, from the medicine screen. */
+export function startPackChange(medicineId: string, packId: string, name: string): void {
+  useChange.getState().reset();
+  useChange.getState().set({ medicineId, packId });
+  router.push({ pathname: '/add/search', params: { change: medicineId, q: name } });
+}
+
+/**
+ * Saves the change and opens the medicine it ended as, with the «Ліки змінено»
+ * toast; a moved pack opens the medicine it went to, with «Упаковку перенесено».
+ */
 export async function finishChange(): Promise<void> {
-  const { medicineId, target, mergeInto, unitChanged: changed, quantities, dose, reset } = useChange.getState();
+  const { medicineId, packId, target, mergeInto, unitChanged: changed, quantities, dose, reset } = useChange.getState();
   if (!medicineId || !target) return;
+  if (packId) {
+    const id = await movePack({
+      packageId: packId,
+      target,
+      mergeInto,
+      ...(packId in quantities ? { quantity: quantities[packId] } : {}),
+    });
+    reset();
+    router.dismissTo({ pathname: '/medicine/[id]', params: { id: medicineId } });
+    router.push({ pathname: '/medicine/[id]', params: { id, packMoved: '1' } });
+    return;
+  }
   const id = await changeMedicine({ medicineId, target, mergeInto, unitChanged: changed, quantities, dose });
   reset();
   if (id === medicineId) {

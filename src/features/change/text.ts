@@ -43,3 +43,16 @@ export function reminderAt(t: T, r: Reminder): string {
   if (r.schedule === 'as_needed') return t('reminder.asNeeded').toLocaleLowerCase();
   return t('change.at', { times: joinList(t, r.times.map((d) => d.time)) });
 }
+
+/** «До 08.2028, 10 шт»; titled, «Упаковка до 08.2028, 10 шт». */
+export function packText(t: T, p: Package, unit: string, titled = false): string {
+  const until = p.expires === null ? null : t('home.until', { date: monthText(p.expires) });
+  const head = titled
+    ? until === null
+      ? t('change.packUnknown')
+      : t('change.packOf', { until })
+    : until === null
+      ? t('expiry.unknown')
+      : until.charAt(0).toLocaleUpperCase() + until.slice(1);
+  return p.quantity === null ? head : `${head}, ${t('medicine.amount', { count: p.quantity, unit })}`;
+}
