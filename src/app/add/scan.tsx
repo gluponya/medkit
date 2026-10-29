@@ -20,8 +20,10 @@ import { getRegisterEntry } from '@/data/register';
 import { useSession } from '@/data/session';
 import { OPEN_GATE, passScan, readScan, type Scan } from '@/domain/barcode';
 import { displayName } from '@/domain/register';
+import { canEdit } from '@/domain/sharing';
 import { CameraAsking, CameraOff, useCamera } from '@/features/add/CameraOff';
 import { useDraft, type AfterAdd } from '@/features/add/draft';
+import { NoAddRights } from '@/features/add/NoAddRights';
 import { useScan } from '@/features/add/scan';
 import { useT } from '@/i18n';
 import { Button } from '@/ui/Button';
@@ -158,6 +160,7 @@ export default function ScanScreen() {
     void undoAdd(added);
   };
 
+  if (cabinet && !canEdit(cabinet.role)) return <NoAddRights />;
   if (camera.state === 'asking') return <CameraAsking onClose={() => router.back()} />;
   if (camera.state === 'off') {
     return (

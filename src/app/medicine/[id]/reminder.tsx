@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMedicine, usePacks, type Medicine } from '@/data/medicines';
 import { askForNotifications } from '@/data/notifications';
 import { deleteReminders, saveReminder, useReminder, type Reminder } from '@/data/reminders';
+import { stepDose } from '@/domain/dose';
 import { localDay } from '@/domain/expiry';
 import {
   COURSE_DAYS,
@@ -197,9 +198,9 @@ function ReminderForm({ medicine, saved }: { medicine: Medicine; saved: Reminder
             <View style={styles.row}>
               <Text style={[type.bodyMedium, styles.rowLabel]}>{t('reminder.perDose')}</Text>
               <View style={styles.rowEnd}>
-                <Round icon="minus" label={t('medicine.less')} onPress={() => setDose((d) => Math.max(1, d - 1))} />
+                <Round icon="minus" label={t('medicine.less')} onPress={() => setDose((d) => stepDose(d, -1))} />
                 <Text style={[type.sectionTitle, styles.dose]}>{t('medicine.amount', { count: dose, unit })}</Text>
-                <Round icon="plus" label={t('medicine.more')} onPress={() => setDose((d) => d + 1)} />
+                <Round icon="plus" label={t('medicine.more')} onPress={() => setDose((d) => stepDose(d, 1))} />
               </View>
             </View>
 

@@ -3,6 +3,7 @@ import { create } from 'zustand';
 
 import { changeMedicine, movePack, type ChangeTarget } from '@/data/change';
 import type { Package } from '@/data/medicines';
+import { useMedicineEdit } from '@/features/medicine/edit';
 import type { Reminder } from '@/data/reminders';
 import type { MedicineForm } from '@/domain/medicine';
 import { UNIT } from '@/features/add/labels';
@@ -29,6 +30,8 @@ interface ChangeState {
   /** Pack id → quantity in the new unit; null is «Не рахувати, просто є». */
   quantities: Record<string, number | null>;
   dose: number | null;
+  /** «Форма» in «Деталі» to another unit: only the numbers are asked again. */
+  formOnly: boolean;
   set: (patch: Partial<Omit<ChangeState, 'set' | 'reset'>>) => void;
   reset: () => void;
 }
@@ -44,6 +47,7 @@ const EMPTY = {
   steps: [],
   quantities: {},
   dose: null,
+  formOnly: false,
 };
 
 export const useChange = create<ChangeState>()((set) => ({
@@ -59,9 +63,10 @@ export function unitChanged(from: MedicineForm | null, to: MedicineForm): boolea
 
 /** «Скасувати» anywhere in the flow: nothing changed, back on the medicine. */
 export function cancelChange(): void {
-  const { medicineId, reset } = useChange.getState();
+  const { medicineId, formOnly, reset } = useChange.getState();
   reset();
-  if (medicineId) router.dismissTo({ pathname: '/medicine/[id]', params: { id: medicineId } });
+  if (medicineId && formOnly) router.dismissTo({ pathname: '/medicine/[id]/details', params: { id: medicineId } });
+  else if (medicineId) router.dismissTo({ pathname: '/medicine/[id]', params: { id: medicineId } });
   else router.back();
 }
 
@@ -77,8 +82,21 @@ export function startPackChange(medicineId: string, packId: string, name: string
  * toast; a moved pack opens the medicine it went to, with «Упаковку перенесено».
  */
 export async function finishChange(): Promise<void> {
-  const { medicineId, packId, target, mergeInto, unitChanged: changed, quantities, dose, reset } = useChange.getState();
+  const { medicineId, packId, target, mergeInto, unitChanged: changed, quantities, dose, formOnly, reset } =
+    useChange.getState();
   if (!medicineId || !target) return;
+  if (formOnly) {
+    await changeMedicine({ medicineId, target, mergeInto: null, unitChanged: true, quantities, dose, formOnly });
+    reset();
+    // «Деталі» shows the edit, not the database: it learns the new form as saved.
+    const edit = useMedicineEdit.getState();
+    if (edit.medicineId === medicineId && edit.fields) {
+      const patch = { form: target.form, lowStockThreshold: null };
+      edit.start(medicineId, { ...edit.fields, ...patch });
+    }
+    router.dismissTo({ pathname: '/medicine/[id]/details', params: { id: medicineId } });
+    return;
+  }
   if (packId) {
     const id = await movePack({
       packageId: packId,

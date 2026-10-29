@@ -12,6 +12,7 @@ import { useCabinetReminders, useDayIntakes } from '@/data/today';
 import { localDay } from '@/domain/expiry';
 import { firstSteps, firstStepsFinished } from '@/domain/first-steps';
 import { overview } from '@/domain/overview';
+import { canEdit } from '@/domain/sharing';
 import { nextDose, todayDoses } from '@/domain/today';
 import { useT } from '@/i18n';
 import { Button } from '@/ui/Button';
@@ -36,7 +37,10 @@ export default function Home() {
   const rows = usePackRows(cabinet?.id);
   const reminderCount = useReminderCount(cabinet?.id);
   const warningDays = cabinet?.expiryWarningDays ?? 30;
-  const list = useMemo(() => overview(rows, localDay(new Date()), warningDays), [rows, warningDays]);
+  // The day from the clock that ticks, so «expires today» turns over at midnight too.
+  const now = useNow();
+  const today = localDay(now);
+  const list = useMemo(() => overview(rows, today, warningDays), [rows, today, warningDays]);
   const later = useSession((s) => s.stepsLater);
   const markNoEvidence = usePrefs((s) => s.markNoEvidence);
   const stepsFinished = useSession((s) => s.stepsFinished);
@@ -50,8 +54,6 @@ export default function Home() {
   const [header, setHeader] = useState<LayoutRectangle>();
   const [title, setTitle] = useState<LayoutRectangle>();
   // The next dose, as on Today, in a cabinet that keeps intake.
-  const now = useNow();
-  const today = localDay(now);
   const time = hhmm(now);
   const plans = useCabinetReminders(cabinet?.id);
   const marks = useDayIntakes(cabinet?.id, today);
@@ -79,7 +81,9 @@ export default function Home() {
 
   const scan = () => router.push('/add/scan');
   const find = () => router.push('/add/search');
-  const showSteps = !stepsFinished && !finishedNow;
+  // A member of a shared cabinet adds nothing to it: no add, no first steps.
+  const adds = canEdit(cabinet.role);
+  const showSteps = adds && !stepsFinished && !finishedNow;
   // The typed-routes generator lists /medicine/[id] as a static path on Windows, so it is cast.
   const openMedicine = (id: string) => router.push(`/medicine/${id}` as Href);
   const nextCard = next ? (
@@ -107,9 +111,11 @@ export default function Home() {
             <Pressable accessibilityRole="button" accessibilityLabel={t('home.search')} onPress={() => router.push('/find')} style={[styles.round, styles.roundSearch]}>
               <Icon name="search" size={20} color={colors.ink} />
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={t('home.add')} onPress={scan} style={[styles.round, styles.roundAdd]}>
-              <Icon name="plus" size={22} color={colors.primary} />
-            </Pressable>
+            {adds ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={t('home.add')} onPress={scan} style={[styles.round, styles.roundAdd]}>
+                <Icon name="plus" size={22} color={colors.primary} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -140,11 +146,15 @@ export default function Home() {
               <Icon name="first-aid-kit" size={32} color={colors.primary} />
             </View>
             <Text style={[type.sectionTitle, styles.emptyTitle]}>{t('home.emptyTitle')}</Text>
-            <Text style={[type.bodyMedium, styles.muted, styles.center]}>{t('home.emptyText')}</Text>
-            <View style={styles.emptyButtons}>
-              <Button label={t('home.scan')} icon="scan" onPress={scan} />
-              <Button label={t('home.find')} icon="search" variant="secondary" onPress={find} />
-            </View>
+            <Text style={[type.bodyMedium, styles.muted, styles.center]}>
+              {t(adds ? 'home.emptyText' : 'home.emptyMember')}
+            </Text>
+            {adds ? (
+              <View style={styles.emptyButtons}>
+                <Button label={t('home.scan')} icon="scan" onPress={scan} />
+                <Button label={t('home.find')} icon="search" variant="secondary" onPress={find} />
+              </View>
+            ) : null}
           </View>
         ) : (
           <>

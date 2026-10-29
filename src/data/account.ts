@@ -7,7 +7,7 @@ import { Platform } from 'react-native';
 
 import { usePrefs } from './prefs';
 import { hasBackend, supabase } from './remote/client';
-import { syncNow, whileSyncPaused } from './sync';
+import { forgetAnonymous, syncNow, whileSyncPaused } from './sync';
 
 /**
  * «Зберегти доступ» (docs/model.md, "Signing in"): the phone signs in with
@@ -81,10 +81,14 @@ export async function signInWithApple(): Promise<boolean> {
  * The server merges the phone's anonymous user into the account and answers
  * with its session. Sync waits meanwhile: a cycle run as the account before the
  * merge would find none of the phone's cabinets on the server and drop them.
+ * The anonymous user stays on the server until the account's session is open
+ * here: should opening it fail, the phone goes on as before and can try again.
  */
 async function finish(body: object, appleName: string): Promise<void> {
   if (!hasBackend) throw new Error('no server in this build');
   await whileSyncPaused(async () => {
+    const before = (await supabase.auth.getSession()).data.session?.user;
+    const anonymous = before?.is_anonymous ? before.id : null;
     const { data, error } = await supabase.functions.invoke<{
       tokenHash?: string;
       session?: { access_token: string; refresh_token: string };
@@ -97,6 +101,8 @@ async function finish(body: object, appleName: string): Promise<void> {
         ? await supabase.auth.setSession(data.session)
         : null;
     if (!opened || opened.error) throw opened?.error ?? new Error('no session from the server');
+    // The account's session is open: the anonymous user it merged can go.
+    if (anonymous) void forgetAnonymous(anonymous).catch(() => {});
 
     const prefs = usePrefs.getState();
     const name = prefs.name || data?.name || appleName;

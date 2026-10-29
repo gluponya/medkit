@@ -32,13 +32,16 @@ export default function MoveScreen() {
   const reminder = useReminder(id) ?? null;
   const [picked, setPicked] = useState<string | null>(null);
   const known = useKnownMedicines(picked ?? undefined);
-  const mergePacks = usePackCount(picked ? sameMedicine(known, medicine?.registerId ?? '', medicine?.name ?? '')?.id : undefined);
+  // Only one of the same form joins: tablets never into the syrup, whose numbers are ml.
+  const mergePacks = usePackCount(
+    picked ? sameMedicine(known, medicine?.registerId ?? '', medicine?.name ?? '', medicine?.form ?? null)?.id : undefined,
+  );
   const [saving, setSaving] = useState(false);
 
   if (!medicine || !cabinets) return null;
 
   const target = cabinets.find((c) => c.id === picked) ?? null;
-  const merge = target ? sameMedicine(known, medicine.registerId ?? '', medicine.name) : null;
+  const merge = target ? sameMedicine(known, medicine.registerId ?? '', medicine.name, medicine.form) : null;
   const expiryOnly = target?.mode === 'expiry_only';
 
   const go = async () => {

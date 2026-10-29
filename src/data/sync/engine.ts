@@ -20,6 +20,14 @@ export interface LocalDb {
 /** The server could not be reached; the next cycle tries again. */
 export class OfflineError extends Error {}
 
+/**
+ * The phone's synced cabinets belong to another server user than the one
+ * signed in now (a lost anonymous session made a new one, say). Nothing is
+ * sent or pulled: the new user would have the changes refused and the member
+ * list would take every shared cabinet off the phone.
+ */
+export class AccountChangedError extends Error {}
+
 /** Outbox rows sent in one call. */
 const BATCH = 100;
 /** Rows pulled in one page. */
@@ -32,10 +40,24 @@ const LOOKBACK_MS = 10_000;
 /** The server tables a phone pulls, in the order their rows depend on each other. */
 const PULLED = ['cabinets', 'medicines', 'packages', 'custom_categories', 'medicine_categories', 'moved_out'] as const;
 type Pulled = (typeof PULLED)[number];
+
+/** Each pulled table's primary key: the order among rows of one `updated_at`. */
+const KEYS: Record<Pulled, string[]> = {
+  cabinets: ['id'],
+  medicines: ['id'],
+  packages: ['id'],
+  custom_categories: ['id'],
+  medicine_categories: ['medicine_id', 'category'],
+  moved_out: ['medicine_id', 'cabinet_id'],
+};
+
+/** The server user this phone's synced cabinets belong to, in `sync_meta`. */
+export const OWNER_KEY = 'user';
 type ServerRow = Record<string, unknown>;
 
 /** Whether a cycle changed the phone's data, so notices are laid out again. */
 export async function syncOnce(local: LocalDb, remote: SupabaseClient, me: string): Promise<boolean> {
+  await checkOwner(local, remote, me);
   const refused = await push(local, remote);
   const joined = await syncMembers(local, remote, me);
   // A refused change, or a cabinet new to this phone: everything again, so the
@@ -61,47 +83,111 @@ type OutboxRow = {
   edited_at: string;
 };
 
-/** Sends the outbox in order. Whether the server refused a change for the role. */
+/**
+ * Who the phone's synced cabinets belong to. The first cycle after an update
+ * has no record yet: it takes the signed-in user when the cabinets are theirs
+ * (a membership, or a cabinet still waiting to go up), and none at all.
+ */
+async function checkOwner(local: LocalDb, remote: SupabaseClient, me: string): Promise<void> {
+  const [stored] = await local.all<{ value: string }>(`SELECT value FROM sync_meta WHERE key = ?`, OWNER_KEY);
+  if (stored) {
+    if (stored.value !== me) throw new AccountChangedError(`cabinets of ${stored.value}, signed in as ${me}`);
+    return;
+  }
+  const here = await local.all<{ id: string }>(`SELECT id FROM cabinets WHERE synced = 1`);
+  if (here.length > 0) {
+    const members = await select<{ cabinet_id: string }>(
+      remote.from('cabinet_members').select('cabinet_id').eq('user_id', me),
+    );
+    const mine = new Set(members.map((m) => m.cabinet_id));
+    const going = await local.all<{ entity_id: string }>(
+      `SELECT entity_id FROM outbox WHERE entity = 'cabinets' AND op = 'insert'`,
+    );
+    for (const g of going) mine.add(g.entity_id);
+    if (!here.some((c) => mine.has(c.id))) throw new AccountChangedError(`no cabinet here is of ${me}`);
+  }
+  await local.run(`INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)`, OWNER_KEY, me);
+}
+
+type Refusal = { id: string; code: string; message: string };
+
+/**
+ * Sends the outbox in order. Whether the phone should pull everything again:
+ * the server refused a change for the role, or a change it kept refusing was
+ * dropped.
+ */
 async function push(local: LocalDb, remote: SupabaseClient): Promise<boolean> {
   // Changes of a cabinet the phone no longer has go with it; its own delete stays.
   await local.run(
     `DELETE FROM outbox WHERE cabinet_id IS NOT NULL AND NOT (entity = 'cabinets' AND op = 'delete')
        AND NOT EXISTS (SELECT 1 FROM cabinets c WHERE c.id = outbox.cabinet_id AND c.synced = 1)`,
   );
-  let refusedForRole = false;
+  // A change refused this many times will not go: kept, it held its cabinet on
+  // the phone after the person left it. It goes, and the pull puts the server's back.
+  const stuck = await local.all<{ entity: string; entity_id: string; last_error: string | null }>(
+    `SELECT entity, entity_id, last_error FROM outbox WHERE attempts >= ?`,
+    POISON,
+  );
+  if (stuck.length > 0) {
+    if (typeof __DEV__ === 'undefined' || __DEV__) console.warn('sync: dropping changes the server keeps refusing:', stuck);
+    await local.run(`DELETE FROM outbox WHERE attempts >= ?`, POISON);
+  }
+  let resync = stuck.length > 0;
   for (;;) {
     const rows = await local.all<OutboxRow>(
       `SELECT seq, id, entity, entity_id, op, payload, edited_at FROM outbox WHERE attempts < ? ORDER BY seq LIMIT ?`,
       POISON,
       BATCH,
     );
-    if (rows.length === 0) return refusedForRole;
+    if (rows.length === 0) return resync;
 
-    const { data, error } = await remote.rpc('push_changes', { changes: rows });
-    if (error) throw new OfflineError(error.message);
-    const refused = new Map((data as { id: string; code: string; message: string }[]).map((r) => [r.id, r]));
-
-    await local.transaction(async () => {
-      for (const row of rows) {
-        const no = refused.get(row.id);
-        if (!no) {
-          await local.run(`DELETE FROM outbox WHERE seq = ?`, row.seq);
-        } else if (no.code === '42501') {
-          // Not this person's to change: the pull puts the server's back.
-          refusedForRole = true;
-          await local.run(`DELETE FROM outbox WHERE seq = ?`, row.seq);
-        } else {
-          await local.run(
-            `UPDATE outbox SET attempts = attempts + 1, last_error = ? WHERE seq = ?`,
-            `${no.code} ${no.message}`,
-            row.seq,
-          );
-        }
-      }
-    });
-    // The rest waits for the next cycle rather than hitting the same wall.
-    if (refused.size > 0) return refusedForRole;
+    const sent = await send(local, remote, rows);
+    resync = resync || sent.forRole;
+    if (sent.refused) {
+      // The rest waits for the next cycle rather than hitting the same wall,
+      // except a cabinet the person left or deleted: held back, the member
+      // list would bring it back to the phone.
+      const leaving = await local.all<OutboxRow>(
+        `SELECT seq, id, entity, entity_id, op, payload, edited_at FROM outbox
+          WHERE entity = 'cabinets' AND op = 'delete' AND attempts < ? AND seq > ? ORDER BY seq`,
+        POISON,
+        rows[rows.length - 1].seq,
+      );
+      if (leaving.length > 0) resync = (await send(local, remote, leaving)).forRole || resync;
+      return resync;
+    }
   }
+}
+
+/** One `push_changes` call and what it left in the outbox. */
+async function send(
+  local: LocalDb,
+  remote: SupabaseClient,
+  rows: OutboxRow[],
+): Promise<{ refused: boolean; forRole: boolean }> {
+  const { data, error } = await remote.rpc('push_changes', { changes: rows });
+  if (error) throw new OfflineError(error.message);
+  const refused = new Map((data as Refusal[]).map((r) => [r.id, r]));
+  let forRole = false;
+  await local.transaction(async () => {
+    for (const row of rows) {
+      const no = refused.get(row.id);
+      if (!no) {
+        await local.run(`DELETE FROM outbox WHERE seq = ?`, row.seq);
+      } else if (no.code === '42501') {
+        // Not this person's to change: the pull puts the server's back.
+        forRole = true;
+        await local.run(`DELETE FROM outbox WHERE seq = ?`, row.seq);
+      } else {
+        await local.run(
+          `UPDATE outbox SET attempts = attempts + 1, last_error = ? WHERE seq = ?`,
+          `${no.code} ${no.message}`,
+          row.seq,
+        );
+      }
+    }
+  });
+  return { refused: refused.size > 0, forRole };
 }
 
 // ─── members ─────────────────────────────────────────────────────────────────
@@ -123,7 +209,13 @@ async function syncMembers(
   const here = await local.all<{ id: string; role: string | null }>(`SELECT id, role FROM cabinets WHERE synced = 1`);
   const hereIds = new Set(here.map((c) => c.id));
 
-  const newIds = [...mine.keys()].filter((id) => !hereIds.has(id));
+  // A cabinet whose leave or delete still waits to go up stays gone.
+  const leaving = new Set(
+    (
+      await local.all<{ entity_id: string }>(`SELECT entity_id FROM outbox WHERE entity = 'cabinets' AND op = 'delete'`)
+    ).map((r) => r.entity_id),
+  );
+  const newIds = [...mine.keys()].filter((id) => !hereIds.has(id) && !leaving.has(id));
   const fresh =
     newIds.length > 0
       ? await select<ServerRow>(remote.from('cabinets').select('*').in('id', newIds).is('deleted_at', null))
@@ -183,11 +275,15 @@ async function pull(local: LocalDb, remote: SupabaseClient, table: Pulled): Prom
   const key = `cursor:${table}`;
   const [stored] = await local.all<{ value: string }>(`SELECT value FROM sync_meta WHERE key = ?`, key);
   let from = stored ? new Date(toMillis(stored.value) - LOOKBACK_MS).toISOString() : null;
+  // Rows at `from` already brought: a page can end inside a run of one
+  // `updated_at` (a cabinet's medicines moved at once), longer than a page even.
+  let skip = 0;
   let any = false;
   for (;;) {
-    let query = remote.from(table).select('*').order('updated_at').limit(PAGE);
+    let query = remote.from(table).select('*').order('updated_at');
+    for (const k of KEYS[table]) query = query.order(k);
     if (from) query = query.gte('updated_at', from);
-    const rows = await select<ServerRow>(query);
+    const rows = await select<ServerRow>(query.range(skip, skip + PAGE - 1));
     if (rows.length === 0) return any;
     any = true;
     await applying(local, () => APPLY[table](local, rows));
@@ -195,7 +291,8 @@ async function pull(local: LocalDb, remote: SupabaseClient, table: Pulled): Prom
     if (!stored || toMillis(last) > toMillis(stored.value)) {
       await local.run(`INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)`, key, last);
     }
-    if (rows.length < PAGE || last === from) return any;
+    if (rows.length < PAGE) return any;
+    skip = last === from ? skip + rows.length : rows.filter((r) => r.updated_at === last).length;
     from = last;
   }
 }

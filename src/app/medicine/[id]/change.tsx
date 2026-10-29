@@ -49,7 +49,10 @@ export default function ChangeScreen() {
   const merge = target ? sameMedicine(known, target.register?.id ?? '', target.name) : null;
   const mergeMedicine = useMedicine(merge?.id ?? '');
   const mergePacks = usePackCount(merge?.id);
-  const mergeReminder = useReminder(merge?.id ?? '') ?? null;
+  const mergeReminderRaw = useReminder(merge?.id ?? '');
+  const mergeReminder = mergeReminderRaw ?? null;
+  // What the merge does depends on the medicine it joins: no button until it has loaded.
+  const mergeLoading = merge !== null && (mergeMedicine === undefined || mergeReminderRaw === undefined);
   const [saving, setSaving] = useState(false);
 
   // The flow was finished or dropped under the screen.
@@ -218,7 +221,7 @@ export default function ChangeScreen() {
         {unitNote ? <Note text={t(unitNote, { unit })} /> : null}
       </ScrollView>
       <View style={styles.footer}>
-        <Button label={merge ? t('change.merge') : moving ? t('change.move') : t('change.change')} onPress={() => void go()} disabled={saving} />
+        <Button label={merge ? t('change.merge') : moving ? t('change.move') : t('change.change')} onPress={() => void go()} disabled={saving || mergeLoading} />
       </View>
     </SafeAreaView>
   );

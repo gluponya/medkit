@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
@@ -25,13 +25,20 @@ function byteString(buffer: ArrayBuffer): string {
  * The instruction from the Register, inside the app. Most are `.mht`, which
  * no phone browser opens, so the page is taken out of it (src/domain/leaflet.ts);
  * a PDF opens as it is. If it does not load, the link can still go to the browser.
+ * Android's WebView shows no PDF at all, so there it goes to the phone's own
+ * viewer at once, and the screen keeps the button for another try.
  */
 export default function LeafletScreen() {
   const t = useT();
   const { url, back } = useLocalSearchParams<{ url: string; back?: string }>();
   const pdf = /\.pdf$/i.test(url);
+  const outside = pdf && Platform.OS === 'android';
   const [html, setHtml] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (outside) Linking.openURL(url).catch(() => setFailed(true));
+  }, [outside, url]);
 
   useEffect(() => {
     if (pdf) return;
@@ -58,7 +65,12 @@ export default function LeafletScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <BackBar label={back ?? t('common.back')} />
-      {failed ? (
+      {outside && !failed ? (
+        <View style={styles.failed}>
+          <Text style={[type.bodyMedium, styles.center]}>{t('leaflet.pdfOutside')}</Text>
+          <Button label={t('leaflet.browser')} icon="external-link" variant="secondary" onPress={() => void Linking.openURL(url)} />
+        </View>
+      ) : failed ? (
         <View style={styles.failed}>
           <Text style={[type.bodyMedium, styles.center]}>{t('leaflet.failed')}</Text>
           <Button label={t('leaflet.browser')} icon="external-link" variant="secondary" onPress={() => void Linking.openURL(url)} />

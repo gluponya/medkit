@@ -16,7 +16,9 @@ import {
   singleInn,
   splitResults,
 } from '@/domain/register';
+import { canEdit } from '@/domain/sharing';
 import { useDraft, type AfterAdd } from '@/features/add/draft';
+import { NoAddRights } from '@/features/add/NoAddRights';
 import { scannedExpiry } from '@/features/add/scan';
 import { useChange } from '@/features/change/draft';
 import { FORM_NAME } from '@/features/add/labels';
@@ -134,6 +136,9 @@ export default function SearchScreen() {
   const close = nothing ? shown.close : [];
   // «Є в «Дім»» on a brand row: any form of it is in the cabinet.
   const hasBrand = (name: string) => known.some((m) => searchText(brandOf(m.name)) === searchText(brandOf(name)));
+
+  // Every add starts here or at the scanner, from whichever screen.
+  if (!change && cabinet && !canEdit(cabinet.role)) return <NoAddRights />;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>

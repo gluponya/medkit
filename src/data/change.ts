@@ -8,7 +8,7 @@ import { rememberCode } from './barcodes';
 import { db } from './db/client';
 import { intakes, medicineCategories, medicines, packages, reminders, shoppingItems } from './db/schema';
 import { rescheduleDoses } from './notifications';
-import type { RegisterEntry } from './register';
+import { getRegisterEntry, type RegisterEntry } from './register';
 
 /** What the medicine really is: a Register entry, or a name and form typed by hand. */
 export interface ChangeTarget {
@@ -37,6 +37,11 @@ export async function changeMedicine(input: {
   quantities: Readonly<Record<string, number | null>>;
   /** The reminder's dose in the new unit; null when it was not asked. */
   dose: number | null;
+  /**
+   * Only the form changed, in «Редагувати»: the medicine stays what it is, and
+   * only its numbers are asked again in the new unit.
+   */
+  formOnly?: boolean;
 }): Promise<string> {
   const { medicineId, target, mergeInto, quantities, dose } = input;
   const into = mergeInto ?? medicineId;
@@ -45,6 +50,9 @@ export async function changeMedicine(input: {
     .selectDistinct({ gtin: packages.gtin })
     .from(packages)
     .where(and(eq(packages.medicineId, medicineId), isNotNull(packages.gtin)));
+  // The tags the old pick's ATC codes gave go with it, unless the new pick gives them too.
+  const [old] = await db.select({ registerId: medicines.registerId }).from(medicines).where(eq(medicines.id, medicineId));
+  const oldEntry = !input.formOnly && old?.registerId ? await getRegisterEntry(old.registerId) : null;
 
   db.transaction((tx) => {
     for (const [packageId, quantity] of Object.entries(quantities)) {
@@ -64,6 +72,14 @@ export async function changeMedicine(input: {
       return;
     }
 
+    if (input.formOnly) {
+      tx.update(medicines)
+        .set({ form: target.form, lowStockThreshold: null })
+        .where(eq(medicines.id, medicineId))
+        .run();
+      return;
+    }
+
     tx.update(medicines)
       .set({
         name: target.name.trim(),
@@ -77,8 +93,14 @@ export async function changeMedicine(input: {
       })
       .where(eq(medicines.id, medicineId))
       .run();
-    // Tags she picked stay; the new pick's ATC codes add theirs.
+    // Tags she picked stay; the old pick's ATC tags go, the new pick's come.
     const atc = entry ? categoriesForAtc(entry.atc) : [];
+    const stale = oldEntry ? categoriesForAtc(oldEntry.atc).filter((c) => !atc.includes(c)) : [];
+    for (const category of stale) {
+      tx.delete(medicineCategories)
+        .where(and(eq(medicineCategories.medicineId, medicineId), eq(medicineCategories.category, category)))
+        .run();
+    }
     if (atc.length > 0) {
       tx.insert(medicineCategories)
         .values(atc.map((category) => ({ medicineId, category })))
@@ -91,7 +113,7 @@ export async function changeMedicine(input: {
       .run();
   });
 
-  for (const { gtin } of scanned) {
+  for (const { gtin } of input.formOnly ? [] : scanned) {
     if (!gtin) continue;
     rememberCode(
       gtin,
@@ -149,6 +171,9 @@ export async function movePack(input: {
       .set({ medicineId: into, ...(input.quantity !== undefined ? { quantity: input.quantity } : {}) })
       .where(eq(packages.id, packageId))
       .run();
+    // Its doses taken stay with this medicine, no longer tied to a pack that
+    // left it: undoing one must not put it back into another medicine's box.
+    tx.update(intakes).set({ packageId: null }).where(eq(intakes.packageId, packageId)).run();
   });
 
   if (pack.gtin) {

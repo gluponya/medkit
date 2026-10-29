@@ -1,11 +1,11 @@
 import { asc, count, eq, inArray } from 'drizzle-orm';
-import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useMemo } from 'react';
 import { uuidv7 } from 'uuidv7';
 
 import type { ReminderPlan } from '@/domain/reminders';
 
 import { db } from './db/client';
+import { useLiveRows } from './live';
 import { medicines, reminders } from './db/schema';
 import { rescheduleDoses } from './notifications';
 
@@ -13,35 +13,38 @@ export type Reminder = typeof reminders.$inferSelect;
 
 /** A medicine's reminder: undefined while loading, null when it has none. */
 export function useReminder(medicineId: string): Reminder | null | undefined {
-  const { data, updatedAt } = useLiveQuery(
+  const { data, updatedAt } = useLiveRows(
     db.select().from(reminders).where(eq(reminders.medicineId, medicineId)),
     [medicineId],
+    ['reminders'],
   );
   return updatedAt ? (data[0] ?? null) : undefined;
 }
 
 /** For «Перші кроки»: whether the cabinet has any reminder yet. */
 export function useReminderCount(cabinetId: string | undefined): number {
-  const { data } = useLiveQuery(
+  const { data } = useLiveRows(
     db
       .select({ n: count() })
       .from(reminders)
       .innerJoin(medicines, eq(medicines.id, reminders.medicineId))
       .where(eq(medicines.cabinetId, cabinetId ?? '')),
     [cabinetId],
+    ['reminders', 'medicines'],
   );
   return data[0]?.n ?? 0;
 }
 
 /** The cabinet's medicines that have a reminder, for «Вже є нагадування». */
 export function useRemindedMedicines(cabinetId: string | undefined): Set<string> {
-  const { data } = useLiveQuery(
+  const { data } = useLiveRows(
     db
       .select({ id: reminders.medicineId })
       .from(reminders)
       .innerJoin(medicines, eq(medicines.id, reminders.medicineId))
       .where(eq(medicines.cabinetId, cabinetId ?? '')),
     [cabinetId],
+    ['reminders', 'medicines'],
   );
   return useMemo(() => new Set(data.map((r) => r.id)), [data]);
 }

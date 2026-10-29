@@ -61,3 +61,13 @@ async function signInWithTelegram(initData: string): Promise<string> {
   if (opened.error || !opened.data.user) throw opened.error ?? new Error('no user from the server');
   return opened.data.user.id;
 }
+
+/**
+ * Forgets the session on this phone only: the server user and its cabinets
+ * stay. After «Видалити всі дані» the next share or join starts a new user
+ * rather than bringing the wiped cabinets back.
+ */
+export async function signOutHere(): Promise<void> {
+  const { error } = await supabase.auth.signOut({ scope: 'local' });
+  if (error && __DEV__) console.warn('sign-out failed:', error);
+}

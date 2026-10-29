@@ -39,6 +39,7 @@ export default function ChangeStepScreen() {
   const mergeInto = useChange((s) => s.mergeInto);
   const moving = useChange((s) => s.packId !== null);
   const target = useChange((s) => s.target);
+  const formOnly = useChange((s) => s.formOnly);
   const into = useMedicine(mergeInto ?? '');
   const n = Number(stepParam);
   const step = steps[n - 1];
@@ -70,7 +71,15 @@ export default function ChangeStepScreen() {
     }
   };
   const nextButton = (ready: boolean) => ({
-    label: last ? (mergeInto ? t('change.merge') : moving ? t('change.move') : t('change.change')) : t('common.next'),
+    label: last
+      ? mergeInto
+        ? t('change.merge')
+        : moving
+          ? t('change.move')
+          : formOnly
+            ? t('common.save')
+            : t('change.change')
+      : t('common.next'),
     onPress: () => void next(),
     disabled: !ready || saving,
   });

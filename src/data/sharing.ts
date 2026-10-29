@@ -9,7 +9,7 @@ import { db } from './db/client';
 import { cabinets, members } from './db/schema';
 import { usePrefs } from './prefs';
 import { hasBackend, signedIn, supabase } from './remote/client';
-import { syncNow } from './sync';
+import { requestSync, syncNow } from './sync';
 
 /**
  * Inviting, joining and the people of a shared cabinet (docs/model.md, "Person
@@ -72,14 +72,18 @@ export async function invite(cabinetId: string): Promise<Invite> {
   return { code: row.code, expiresAt: new Date(row.expires_at) };
 }
 
+/**
+ * An expired invite of a cabinet this person is not in tells nothing about
+ * the cabinet: everything but `expired` and `joined` is null then.
+ */
 export interface InvitePeek {
-  cabinetId: string;
-  name: string;
-  icon: CabinetIcon;
+  cabinetId: string | null;
+  name: string | null;
+  icon: CabinetIcon | null;
   /** Empty when the inviter has no name. */
-  inviter: string;
-  medicines: number;
-  people: number;
+  inviter: string | null;
+  medicines: number | null;
+  people: number | null;
   expired: boolean;
   /** This person is in the cabinet already. */
   joined: boolean;
@@ -89,12 +93,12 @@ export interface InvitePeek {
 export async function peekInvite(code: string): Promise<InvitePeek | null> {
   const [row] = await call<
     {
-      cabinet_id: string;
-      name: string;
-      icon: CabinetIcon;
-      inviter: string;
-      medicines: number;
-      people: number;
+      cabinet_id: string | null;
+      name: string | null;
+      icon: CabinetIcon | null;
+      inviter: string | null;
+      medicines: number | null;
+      people: number | null;
       expired: boolean;
       joined: boolean;
     }[]
@@ -103,11 +107,21 @@ export async function peekInvite(code: string): Promise<InvitePeek | null> {
   return { ...row, cabinetId: row.cabinet_id };
 }
 
-/** «Приєднатися»: the cabinet comes to the phone and is the current one. */
+/**
+ * The server's «no such invite» from `join_cabinet`: the code is unknown, has
+ * expired, or its cabinet was deleted, which it does not tell apart.
+ */
+export const isInviteGone = (e: unknown) => (e as { code?: string } | null)?.code === 'P0002';
+
+/**
+ * «Приєднатися»: the cabinet comes to the phone and is the current one. Once
+ * the server has taken the person in, a failed sync does not undo the join:
+ * the cabinet comes down with a later cycle.
+ */
 export async function joinByCode(code: string, name: string): Promise<string> {
   usePrefs.getState().set({ name: name.trim() });
   const cabinetId = await call<string>('join_cabinet', { code, name: name.trim() });
-  await sync();
+  await syncNow(true).catch(() => requestSync(5000, true));
   return cabinetId;
 }
 

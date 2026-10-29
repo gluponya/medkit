@@ -226,13 +226,31 @@ one side and a whole insert on the other.
 **Leaving or being removed.** A cabinet the server no longer lists for this
 person goes from the phone, with whatever of it was still in the outbox.
 «Видалити аптечку» by the owner deletes it for everyone (asks first); for
-anyone else it is «Вийти з аптечки», and the cabinet stays for the rest.
+anyone else it is «Вийти з аптечки», and the cabinet stays for the rest. A
+leave or delete still waiting in the outbox goes up even when an earlier
+change was refused, and the member list does not bring that cabinet back
+meanwhile. A change the server refused ten times is dropped, and the phone
+pulls everything again to match the server.
+
+**Members add nothing.** A member (not owner or admin) gets no «+», no first
+steps, and the add screens say they cannot add; adding a medicine or a pack to
+such a cabinet fails on the phone too, as the server would refuse it.
 
 **No network.** Nothing stops. Invite and join need the network, and say so.
 
 **Identity.** The anonymous user of the first launch (see the top), or the
 account it signed in to. Its name is a `profiles` row; the members list and
-«Олена запрошує вас» read it.
+«Олена запрошує вас» read it. The phone remembers which user its synced
+cabinets belong to (`sync_meta` `user`). If the session turns out to be
+another user (a lost anonymous session made a new one), sync stops and the
+phone keeps its data rather than sending it as someone else or dropping every
+shared cabinet; only signing in (below) changes that user on purpose.
+
+**Wiping the phone.** «Видалити всі дані» deletes this phone's copy only: the
+cabinets, the outbox and the sync cursors go, nothing is sent to the server,
+and the phone signs out. On the server the shared cabinets stay, with this
+person still a member (an anonymous one cannot come back to them); an account
+signed in again brings them back.
 
 ## Signing in
 
@@ -251,8 +269,11 @@ Decided with the owner (2026-10-29):
 - **Into an account that has cabinets already**, the phone's are added to them:
   the server moves the phone's anonymous user into the account
   (`merge_account`: memberships with the stronger role, the name if the
-  account has none, own categories, barcode picks) and deletes it. Nothing is
-  overwritten.
+  account has none, own categories, barcode picks). Nothing is overwritten.
+  The anonymous user is deleted only once the phone has opened the account's
+  session (it calls the function again with `forget`); if that fails, the
+  phone goes on as the anonymous user and can sign in again. A `forget` that
+  did not reach the server is kept in `sync_meta` and sent on the next start.
 
 How (`supabase/functions/sign-in`, `src/data/account.ts`):
 
@@ -328,6 +349,9 @@ nothing in the new one, and the app never converts them:
 - each reminder's dose is asked again, and the reminder sends no push until
   it is answered.
 
+The same questions come when only the form changes to another unit, from
+«Форма» in «Деталі»: the medicine stays what it is, its numbers are asked again.
+
 In the same unit the numbers stay, except a pack that cannot be the new
 pick's: a whole pack holding none of the Register's pack sizes for it, or any
 pack holding more than the largest (100 tablets left from the wrong pick,
@@ -370,7 +394,7 @@ A medicine added to the wrong cabinet is moved from «Деталі», row «Ап
 («Де лежить»). It goes with its packs, tags, intakes and shopping lines. Into
 an `expiry_only` cabinet the reminder is deleted, and the picker says so
 first («Нагадування вимкнеться»). If the target cabinet already has the same
-medicine (same Register id, or the same name), the two are joined as in
+medicine of the same form (same Register id, or the same name), the two are joined as in
 «Змінити ліки»: the one already there keeps its reminder. Only those who can
 edit medicines in both cabinets can move one.
 

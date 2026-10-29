@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 import { mergeMedicine } from './change';
 import { db } from './db/client';
@@ -21,15 +21,26 @@ export async function moveMedicine(input: {
   mergeInto: string | null;
 }): Promise<string> {
   const { medicineId, cabinetId, expiryOnly, mergeInto } = input;
+  let into = mergeInto;
   db.transaction((tx) => {
     if (expiryOnly) tx.delete(reminders).where(eq(reminders.medicineId, medicineId)).run();
-    if (mergeInto) {
-      mergeMedicine(tx, medicineId, mergeInto);
+    // A medicine of another form is not the same one: its numbers are in another unit.
+    if (into) {
+      const forms = tx
+        .select({ id: medicines.id, form: medicines.form })
+        .from(medicines)
+        .where(inArray(medicines.id, [medicineId, into]))
+        .all();
+      const [a, b] = [forms.find((m) => m.id === medicineId), forms.find((m) => m.id === into)];
+      if (!a || !b || a.form !== b.form) into = null;
+    }
+    if (into) {
+      mergeMedicine(tx, medicineId, into);
       return;
     }
     tx.update(medicines).set({ cabinetId }).where(eq(medicines.id, medicineId)).run();
     tx.update(shoppingItems).set({ cabinetId }).where(eq(shoppingItems.medicineId, medicineId)).run();
   });
   await rescheduleDoses();
-  return mergeInto ?? medicineId;
+  return into ?? medicineId;
 }

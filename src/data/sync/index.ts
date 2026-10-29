@@ -8,7 +8,9 @@ import { rescheduleDoses } from '@/data/notifications';
 import { hasBackend, signedIn, supabase } from '@/data/remote/client';
 import { inTelegram } from '@/ui/telegram-shell';
 
-import { OfflineError, syncOnce, type LocalDb } from './engine';
+import { AccountChangedError, OfflineError, OWNER_KEY, syncOnce, type LocalDb } from './engine';
+
+export { AccountChangedError };
 
 /**
  * Runs the sync engine (./engine.ts) when there is something to do: on start,
@@ -106,15 +108,47 @@ export function syncNow(force = false): Promise<void> {
 /**
  * Runs `fn` with no cycle running or starting: signing in changes who the
  * phone is on the server, and a cycle in between would see the wrong cabinets.
+ * A user `fn` signed in on purpose becomes the owner of the phone's synced
+ * cabinets; one that changed any other way stops the sync (AccountChangedError).
  */
 export async function whileSyncPaused<T>(fn: () => Promise<T>): Promise<T> {
   paused = true;
   try {
     await running?.catch(() => {});
-    return await fn();
+    const before = (await supabase.auth.getSession()).data.session?.user.id ?? null;
+    try {
+      return await fn();
+    } finally {
+      const after = (await supabase.auth.getSession()).data.session?.user.id ?? null;
+      if (after && after !== before) {
+        sqlite.runSync(`INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)`, [OWNER_KEY, after]);
+      }
+    }
   } finally {
     paused = false;
   }
+}
+
+const FORGET_KEY = 'forget';
+
+/**
+ * Asks the server to delete the anonymous user a sign-in merged into the
+ * account (supabase/functions/sign-in, `forget`). Kept in `sync_meta` until
+ * the server has answered, and tried again on the next start.
+ */
+export async function forgetAnonymous(id?: string): Promise<void> {
+  if (!hasBackend) return;
+  if (id) sqlite.runSync(`INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)`, [FORGET_KEY, id]);
+  const row = sqlite.getFirstSync<{ value: string }>(`SELECT value FROM sync_meta WHERE key = ?`, [FORGET_KEY]);
+  if (!row) return;
+  const { error } = await supabase.functions.invoke('sign-in', { body: { forget: row.value } });
+  // The server said no (already gone, not anonymous, another account): asking again will not help.
+  const status = (error as { context?: { status?: number } } | null)?.context?.status;
+  if (error && !(status && status >= 400 && status < 500)) {
+    if (__DEV__) console.warn('forgetting the anonymous user failed:', error);
+    return;
+  }
+  sqlite.runSync(`DELETE FROM sync_meta WHERE key = ? AND value = ?`, [FORGET_KEY, row.value]);
 }
 
 /** A cycle a little later, for the background: failures wait for the next one. */
@@ -124,7 +158,8 @@ export function requestSync(delayMs = 0, force = false) {
   timer = setTimeout(() => {
     timer = null;
     syncNow(force).catch((e: unknown) => {
-      if (__DEV__ && !(e instanceof OfflineError)) console.warn('sync failed:', e);
+      if (__DEV__ && e instanceof AccountChangedError) console.warn('sync stopped, another account:', e.message);
+      else if (__DEV__ && !(e instanceof OfflineError)) console.warn('sync failed:', e);
     });
   }, delayMs);
 }
@@ -145,7 +180,10 @@ export function startSync(): () => void {
   // A phone that has been on the server once asks it on start even with no
   // synced cabinet here: a cabinet it joined may not have come down yet. The
   // Telegram mini app is signed in with Telegram, so it always asks.
-  void supabase.auth.getSession().then(({ data }) => requestSync(0, data.session !== null || inTelegram()));
+  void supabase.auth.getSession().then(({ data }) => {
+    requestSync(0, data.session !== null || inTelegram());
+    if (data.session && !data.session.user.is_anonymous) void forgetAnonymous().catch(() => {});
+  });
   const app = AppState.addEventListener('change', (state) => {
     if (state === 'active') requestSync();
   });

@@ -27,7 +27,7 @@ export default function JoinCodeScreen() {
       const peek = await peekInvite(full);
       if (!peek) return setState('unknown');
       setState('typing');
-      if (peek.joined) {
+      if (peek.joined && peek.cabinetId) {
         useSession.getState().setCurrentCabinet(peek.cabinetId);
         router.dismissAll();
         router.replace('/home');
