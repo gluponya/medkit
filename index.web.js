@@ -38,7 +38,34 @@ console.error = (...args) => {
 // reloads, a few times, a second apart.
 const RELOADS = 'medkit.db-reloads';
 
-SQLite.openDatabaseAsync('medkit.db')
+// Two pages cannot hold the database at once: a second window, or on a
+// computer Telegram keeping the app's last page open behind the new one. The
+// page that opens last takes it over. It holds a lock on the database for as
+// long as it lives; the page before it hears it asking and goes to a page that
+// says the app is open elsewhere (public/elsewhere.html), and the lock is free
+// once that page is gone. A page that cannot answer still frees it when it
+// closes, and the new one waits until then.
+const LOCK = 'medkit.db';
+const others = typeof BroadcastChannel === 'function' ? new BroadcastChannel(LOCK) : null;
+
+function takeOverDatabase() {
+  if (!navigator.locks) return Promise.resolve();
+  return new Promise((resolve) => {
+    const asking = setInterval(() => others?.postMessage('take-over'), 1000);
+    others?.postMessage('take-over');
+    navigator.locks.request(LOCK, () => {
+      clearInterval(asking);
+      others?.addEventListener('message', (e) => {
+        if (e.data === 'take-over') window.location.replace('/elsewhere.html' + window.location.hash);
+      });
+      resolve();
+      return new Promise(() => {});
+    });
+  });
+}
+
+takeOverDatabase()
+  .then(() => SQLite.openDatabaseAsync('medkit.db'))
   .then((db) => db.closeAsync())
   .then(() => {
     sessionStorage.removeItem(RELOADS);

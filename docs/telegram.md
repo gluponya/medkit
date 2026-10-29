@@ -11,6 +11,16 @@ follows.
   the database once asynchronously before requiring the app. On the web
   SQLite runs in a worker that loads its wasm first, and a synchronous call
   times out after a few milliseconds while it does.
+- One page at a time holds the database. The page opened last takes it over
+  (a Web Lock and a BroadcastChannel in `index.web.js`), and the one before
+  goes to `public/elsewhere.html`: «Аптечка відкрита в іншому вікні». On a
+  computer Telegram can keep the app's last page alive behind a new one, and
+  the new one could not open the database at all.
+- Where the web view has no private file system (no `navigator.storage`, or
+  no sync access to a file), SQLite's files are kept in memory
+  (`src/data/db/web/AccessHandlePoolVFS.ts`, put in expo-sqlite's worker by
+  `metro.config.js`). They are gone when the page closes; in Telegram
+  everything comes down from the server again.
 - Files with `.web.ts(x)` replace their neighbour on the web:
   `src/data/notifications.web.ts` (a page sends no notifications; in Telegram
   they are to be the bot's messages) and `src/ui/FitText.web.tsx` (the web's

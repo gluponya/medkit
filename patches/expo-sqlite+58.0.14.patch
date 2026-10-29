@@ -1,0 +1,46 @@
+diff --git a/node_modules/expo-sqlite/web/WorkerChannel.ts b/node_modules/expo-sqlite/web/WorkerChannel.ts
+index 2c5ff82..db2a2f0 100644
+--- a/node_modules/expo-sqlite/web/WorkerChannel.ts
++++ b/node_modules/expo-sqlite/web/WorkerChannel.ts
+@@ -16,6 +16,9 @@ const RESOLVED = 2;
+ 
+ let hasWarnedSync = false;
+ 
++/** How long a synchronous call waits for the worker. */
++const SYNC_TIMEOUT_MS = 30_000;
++
+ /**
+  * For worker to send result to the main thread.
+  */
+@@ -124,24 +127,19 @@ export function invokeWorkerSync<T extends SQLiteWorkerMessageType & keyof Resul
+     resultBuffer,
+   });
+ 
+-  let i = 0;
++  // A million pauses are a few milliseconds, and the first statements on a new
++  // database (its files are made then) or a busy computer take longer, so the
++  // wait is by the clock.
+   // @ts-expect-error: Remove this when TypeScript supports Atomics.pause
+   const useAtomicsPause = typeof Atomics.pause === 'function';
++  const deadline = performance.now() + SYNC_TIMEOUT_MS;
+   while (Atomics.load(lock, 0) === PENDING) {
+-    ++i;
+-
++    if (performance.now() > deadline) {
++      throw new Error('Sync operation timeout');
++    }
+     if (useAtomicsPause) {
+-      if (i > 1_000_000) {
+-        throw new Error('Sync operation timeout');
+-      }
+       // @ts-expect-error: Remove this when TypeScript supports Atomics.pause
+       Atomics.pause();
+-    } else {
+-      // NOTE(kudo): Unfortunate for the busy loop,
+-      // because we don't have a way for main thread to yield its execution to other callbacks.
+-      if (i > 1000_000_000) {
+-        throw new Error('Sync operation timeout');
+-      }
+     }
+   }
+ 
