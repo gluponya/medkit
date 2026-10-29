@@ -33,27 +33,33 @@ export const EVIDENCE_NOTES: readonly EvidenceNote[] = [
     key: 'Piracetam',
     source: 'https://www.cochrane.org/CD001011/DEMENTIA_piracetam-for-dementia-or-cognitive-impairment',
     sourceName: 'Cochrane',
-    reviewed: false,
+    reviewed: true,
   },
   {
     key: 'Vinpocetine',
     source: 'https://www.cochrane.org/evidence/CD003119_insufficient-evidence-benefits-vinpocetine-people-dementia',
     sourceName: 'Cochrane',
-    reviewed: false,
+    reviewed: true,
   },
   {
     key: 'Cerebrolysin',
     names: ['ЦЕРЕБРОЛІЗИН'],
     source: 'https://www.cochrane.org/evidence/CD007026_cerebrolysin-acute-ischaemic-stroke',
     sourceName: 'Cochrane',
-    reviewed: false,
+    reviewed: true,
   },
   {
     key: 'Actovegin',
     names: ['АКТОВЕГІН'],
     source: 'https://doi.org/10.1371/journal.pone.0270497',
     sourceName: 'PLoS One',
-    reviewed: false,
+    reviewed: true,
+  },
+  {
+    key: 'Umifenovir',
+    source: 'https://doi.org/10.1002/iid3.502',
+    sourceName: 'Immunity, Inflammation and Disease',
+    reviewed: true,
   },
 ];
 
