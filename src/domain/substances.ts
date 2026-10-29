@@ -5,8 +5,9 @@ import { type SubstanceFacts } from './body-time';
  * (docs/model.md, "SubstanceFacts"). Read from one Register instruction per
  * INN, by two reviewers apart; a row ships once they agree and the quotes are
  * found in the instruction word for word. A mean with a range around it is the
- * mean: the range is the spread between people. Left out until their
- * instruction gives a number: Amoxicillin and beta-lactamase inhibitor, Cefixime, Clarithromycin, Metamizole sodium, Oseltamivir.
+ * mean: the range is the spread between people. A prodrug (metamizole,
+ * oseltamivir) takes its active metabolite's half-life: the drug itself is not
+ * in the blood.
  */
 export const SUBSTANCE_FACTS: readonly SubstanceFacts[] = [
   {
@@ -47,6 +48,13 @@ export const SUBSTANCE_FACTS: readonly SubstanceFacts[] = [
     reviewed: true,
   },
   {
+    inn: 'Amoxicillin and beta-lactamase inhibitor',
+    halfLifeHours: { min: 1, max: 1 },
+    alcohol: 'not_mentioned',
+    source: 'http://www.drlz.com.ua/ibp/lz_www.nsf/id/E1D9DFBB78FF6FC942258E4800465290/$file/UA70640101_CF7A.mht',
+    reviewed: true,
+  },
+  {
     inn: 'Atorvastatin',
     halfLifeHours: { min: 14, max: 14 },
     alcohol: 'not_mentioned',
@@ -70,6 +78,15 @@ export const SUBSTANCE_FACTS: readonly SubstanceFacts[] = [
     reviewed: true,
   },
   {
+    inn: 'Cefixime',
+    halfLifeHours: { min: 3.3, max: 3.3 },
+    alcohol: 'avoid',
+    alcoholQuote:
+      'Цефалоспорини підвищують токсичність алкоголю, тому при лікуванні цефіксимом не рекомендується вживати алкогольні напої.',
+    source: 'http://www.drlz.com.ua/ibp/lz_www.nsf/id/5F25DE4DC9B54A7A42258DDB0079D6FF/$file/UA212150101_3BE6.mht',
+    reviewed: true,
+  },
+  {
     inn: 'Cefuroxime',
     halfLifeHours: { min: 1, max: 1.5 },
     alcohol: 'not_mentioned',
@@ -90,6 +107,14 @@ export const SUBSTANCE_FACTS: readonly SubstanceFacts[] = [
     halfLifeHours: { min: 4, max: 7 },
     alcohol: 'not_mentioned',
     source: 'http://www.drlz.com.ua/ibp/lz_www.nsf/id/A1A3FF27342D563642258D080030C2BB/$file/UA129820102_483E.mht',
+    reviewed: true,
+  },
+  {
+    inn: 'Clarithromycin',
+    halfLifeHours: { min: 5.3, max: 5.8 },
+    metaboliteHalfLifeHours: { min: 7.7, max: 8.9 },
+    alcohol: 'not_mentioned',
+    source: 'http://www.drlz.com.ua/ibp/lz_www.nsf/id/E62D2AEDA40C826942258CD6003DBE8C/$file/UA22370201_74AB.mht',
     reviewed: true,
   },
   {
@@ -232,6 +257,15 @@ export const SUBSTANCE_FACTS: readonly SubstanceFacts[] = [
     reviewed: true,
   },
   {
+    inn: 'Metamizole sodium',
+    halfLifeHours: { min: 2.5, max: 2.5 },
+    alcohol: 'avoid',
+    alcoholQuote:
+      'При застосуванні препарату слід утримуватися від вживання алкогольних напоїв.',
+    source: 'http://www.drlz.com.ua/ibp/lz_www.nsf/id/62157488672323EFC2258D310056B087/$file/UA83740101_06B1.mht',
+    reviewed: true,
+  },
+  {
     inn: 'Metformin',
     halfLifeHours: { min: 6.5, max: 6.5 },
     alcohol: 'avoid',
@@ -269,6 +303,13 @@ export const SUBSTANCE_FACTS: readonly SubstanceFacts[] = [
     halfLifeHours: { min: 1, max: 1 },
     alcohol: 'not_mentioned',
     source: 'http://www.drlz.com.ua/ibp/lz_www.nsf/id/49065962241191EA42258DCD004671A7/$file/UA02350202_F249.mht',
+    reviewed: true,
+  },
+  {
+    inn: 'Oseltamivir',
+    halfLifeHours: { min: 6, max: 10 },
+    alcohol: 'not_mentioned',
+    source: 'http://www.drlz.com.ua/ibp/lz_www.nsf/id/29F97DB16345625442258E5E004778DC/$file/UA181150101_1105.mht',
     reviewed: true,
   },
   {

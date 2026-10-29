@@ -434,10 +434,11 @@ gives only the general time: «Виводиться приблизно за 2 д
 
 - Not everyone wants it: a Settings switch «Час в організмі й алкоголь» under
   «Ліки», off until turned on. Not asked in the first steps.
-- Launch rows: 39 of the 44 commonest substances in home cabinets (pain and fever,
+- Launch rows: the 44 commonest substances in home cabinets (pain and fever,
   allergy, antibiotics, stomach, cough, sleep and nerves, heart and pressure,
-  sugar, cholesterol); five wait because their instruction gives no half-life.
-  More come in batches.
+  sugar, cholesterol). Where the first instruction had no half-life, another
+  maker's was used. A prodrug (metamizole, oseltamivir) takes its active
+  metabolite's half-life. More come in batches.
 - A half-life given as a mean with a range («приблизно 11 годин (діапазон 9–14)»)
   is the mean: the range is the spread between people, and its top would make a
   common medicine look like it stays for weeks.
