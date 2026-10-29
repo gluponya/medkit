@@ -53,7 +53,7 @@ A place where medicines are kept: home, car, dacha, parents'.
 | name | Prefilled from the place: «Дім», «Машина», «Дача», «Батьки». |
 | place | `home`, `car`, `dacha`, `parents`, `other`. Picks the icon and the default mode. |
 | icon | One of twelve line icons. Defaults from the place (Інше: a first-aid kit); can be picked when the cabinet is created or later. |
-| mode | `expiry_only` or `with_intake`. Home defaults to `with_intake`, the rest to `expiry_only`. Can be changed. |
+| mode | `expiry_only` or `with_intake`. Home defaults to `with_intake`, the rest to `expiry_only`. Can be picked when the cabinet is created or changed later. |
 | expiry_warning_days | When a pack counts as «Закінчується термін». Default 30. |
 | expiry_push | Expiry notices and the weekly summary include this cabinet. On by default; off for a cabinet she only checks on visits. Home still shows its expired and expiring packs. |
 

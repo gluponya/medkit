@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { uuidv7 } from 'uuidv7';
 
 import { localDay } from '@/domain/expiry';
-import { defaultMode, type CabinetIcon, type CabinetMode, type Place } from '@/domain/places';
+import { type CabinetIcon, type CabinetMode, type Place } from '@/domain/places';
 
 import { db } from './db/client';
 import { cabinets, medicines, packages } from './db/schema';
@@ -17,7 +17,12 @@ export type Cabinet = typeof cabinets.$inferSelect;
  * A new cabinet, made the current one. A cabinet beside others brings the
  * switcher hint on Home, unless it was seen before.
  */
-export async function createCabinet(input: { name: string; place: Place; icon: CabinetIcon }): Promise<string> {
+export async function createCabinet(input: {
+  name: string;
+  place: Place;
+  icon: CabinetIcon;
+  mode: CabinetMode;
+}): Promise<string> {
   const id = uuidv7();
   const [{ n: existing }] = await db.select({ n: count() }).from(cabinets);
   await db.insert(cabinets).values({
@@ -25,7 +30,7 @@ export async function createCabinet(input: { name: string; place: Place; icon: C
     name: input.name.trim(),
     place: input.place,
     icon: input.icon,
-    mode: defaultMode(input.place),
+    mode: input.mode,
   });
   const session = useSession.getState();
   session.setCurrentCabinet(id);

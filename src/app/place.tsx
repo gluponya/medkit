@@ -14,7 +14,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { createCabinet, useCabinets } from '@/data/cabinets';
-import { CABINET_ICONS, defaultIcon, defaultMode, PLACES, type CabinetIcon, type Place } from '@/domain/places';
+import {
+  CABINET_ICONS,
+  defaultIcon,
+  defaultMode,
+  PLACES,
+  type CabinetIcon,
+  type CabinetMode,
+  type Place,
+} from '@/domain/places';
 import { useT, type MessageKey } from '@/i18n';
 import { Button } from '@/ui/Button';
 import { Icon } from '@/ui/Icon';
@@ -29,12 +37,17 @@ const PLACE_NAME: Record<Place, MessageKey> = {
   other: 'place.other',
 };
 
+const MODES: { mode: CabinetMode; label: MessageKey }[] = [
+  { mode: 'expiry_only', label: 'cabinet.expiryOnly' },
+  { mode: 'with_intake', label: 'cabinet.withIntake' },
+];
+
 /** Past this much scroll the big title is gone and the bar shows it instead. */
 const TITLE_SCROLLED = 64;
 
 /**
  * Where is the cabinet (docs/screens.md): five places as tiles, the picked one
- * opens with its name and icon. The first place no cabinet has yet is picked
+ * opens with its name, icon and mode. The first place no cabinet has yet is picked
  * at first: home for the first cabinet, the most common answer.
  */
 export default function PlaceScreen() {
@@ -49,6 +62,7 @@ function PlaceForm({ first }: { first: Place }) {
   const [place, setPlace] = useState<Place>(first);
   const [name, setName] = useState(first === 'other' ? '' : t(PLACE_NAME[first]));
   const [icon, setIcon] = useState<CabinetIcon>(defaultIcon(first));
+  const [mode, setMode] = useState<CabinetMode>(defaultMode(first));
   const [titleInBar, setTitleInBar] = useState(false);
   const [saving, setSaving] = useState(false);
   const nameInput = useRef<TextInputInstance>(null);
@@ -57,6 +71,7 @@ function PlaceForm({ first }: { first: Place }) {
     if (next === place) return;
     setPlace(next);
     setIcon(defaultIcon(next));
+    setMode(defaultMode(next));
     // «Інше» has no name to guess: it starts empty, with the keyboard up.
     setName(next === 'other' ? '' : t(PLACE_NAME[next]));
     if (next === 'other') setTimeout(() => nameInput.current?.focus(), 50);
@@ -65,7 +80,7 @@ function PlaceForm({ first }: { first: Place }) {
   const create = async () => {
     setSaving(true);
     try {
-      await createCabinet({ name, place, icon });
+      await createCabinet({ name, place, icon, mode });
       router.dismissAll();
       router.replace('/home');
     } finally {
@@ -97,7 +112,8 @@ function PlaceForm({ first }: { first: Place }) {
           <View style={styles.list}>
             {PLACES.map((p) => {
               const picked = p === place;
-              const subtitle = t(defaultMode(p) === 'with_intake' ? 'place.withIntake' : 'place.expiryOnly');
+              const shownMode = picked ? mode : defaultMode(p);
+              const subtitle = t(shownMode === 'with_intake' ? 'place.withIntake' : 'place.expiryOnly');
               return (
                 <View key={p} style={[styles.tile, picked && styles.tilePicked]}>
                   <Pressable
@@ -152,6 +168,25 @@ function PlaceForm({ first }: { first: Place }) {
                           })}
                         </View>
                       ))}
+                      <Text style={[type.label, styles.iconLabel]}>{t('cabinet.tracks')}</Text>
+                      <View style={styles.modeRow}>
+                        {MODES.map((m) => {
+                          const on = m.mode === mode;
+                          return (
+                            <Pressable
+                              key={m.mode}
+                              accessibilityRole="radio"
+                              accessibilityState={{ selected: on }}
+                              onPress={() => setMode(m.mode)}
+                              style={[styles.modeTile, on && styles.iconTileOn]}
+                            >
+                              <Text style={[type.bodyMedium, styles.modeText, on && styles.modeTextOn]}>
+                                {t(m.label)}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
                     </View>
                   ) : null}
                 </View>
@@ -229,6 +264,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconTileOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  modeRow: { marginTop: spacing.sm, flexDirection: 'row', gap: spacing.sm },
+  modeTile: {
+    flex: 1,
+    minHeight: 48,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.tile,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeText: { color: colors.ink, textAlign: 'center' },
+  modeTextOn: { color: colors.white },
   footer: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
