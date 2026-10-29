@@ -46,26 +46,25 @@ export async function changeMedicine(input: {
     .from(packages)
     .where(and(eq(packages.medicineId, medicineId), isNotNull(packages.gtin)));
 
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     for (const [packageId, quantity] of Object.entries(quantities)) {
-      await tx.update(packages).set({ quantity }).where(eq(packages.id, packageId));
+      tx.update(packages).set({ quantity }).where(eq(packages.id, packageId)).run();
     }
 
-    const [reminder] = await tx.select().from(reminders).where(eq(reminders.medicineId, medicineId));
+    const reminder = tx.select().from(reminders).where(eq(reminders.medicineId, medicineId)).get();
     if (reminder && dose !== null) {
-      await tx
-        .update(reminders)
+      tx.update(reminders)
         .set({ times: reminder.times.map((time) => ({ ...time, dose })) })
-        .where(eq(reminders.id, reminder.id));
+        .where(eq(reminders.id, reminder.id))
+        .run();
     }
 
     if (mergeInto) {
-      await mergeMedicine(tx, medicineId, mergeInto);
+      mergeMedicine(tx, medicineId, mergeInto);
       return;
     }
 
-    await tx
-      .update(medicines)
+    tx.update(medicines)
       .set({
         name: target.name.trim(),
         form: target.form,
@@ -76,19 +75,20 @@ export async function changeMedicine(input: {
         registerId: entry?.id ?? null,
         ...(input.unitChanged ? { lowStockThreshold: null } : {}),
       })
-      .where(eq(medicines.id, medicineId));
+      .where(eq(medicines.id, medicineId))
+      .run();
     // Tags she picked stay; the new pick's ATC codes add theirs.
     const atc = entry ? categoriesForAtc(entry.atc) : [];
     if (atc.length > 0) {
-      await tx
-        .insert(medicineCategories)
+      tx.insert(medicineCategories)
         .values(atc.map((category) => ({ medicineId, category })))
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .run();
     }
-    await tx
-      .update(shoppingItems)
+    tx.update(shoppingItems)
       .set({ name: target.name.trim() })
-      .where(eq(shoppingItems.medicineId, medicineId));
+      .where(eq(shoppingItems.medicineId, medicineId))
+      .run();
   });
 
   for (const { gtin } of scanned) {
@@ -127,9 +127,9 @@ export async function movePack(input: {
   if (!from) throw new Error(`medicine ${pack.medicineId} is gone`);
   const into = mergeInto ?? uuidv7();
 
-  await db.transaction(async (tx) => {
+  db.transaction((tx) => {
     if (!mergeInto) {
-      await tx.insert(medicines).values({
+      tx.insert(medicines).values({
         id: into,
         cabinetId: from.cabinetId,
         name: target.name.trim(),
@@ -139,16 +139,16 @@ export async function movePack(input: {
         manufacturer: entry?.manufacturer ?? null,
         rx: entry?.rx ?? false,
         registerId: entry?.id ?? null,
-      });
+      }).run();
       const atc = entry ? categoriesForAtc(entry.atc) : [];
       if (atc.length > 0) {
-        await tx.insert(medicineCategories).values(atc.map((category) => ({ medicineId: into, category })));
+        tx.insert(medicineCategories).values(atc.map((category) => ({ medicineId: into, category }))).run();
       }
     }
-    await tx
-      .update(packages)
+    tx.update(packages)
       .set({ medicineId: into, ...(input.quantity !== undefined ? { quantity: input.quantity } : {}) })
-      .where(eq(packages.id, packageId));
+      .where(eq(packages.id, packageId))
+      .run();
   });
 
   if (pack.gtin) {
@@ -170,25 +170,26 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * move there, and `from` is deleted. One reminder per medicine: the one
  * already there wins (in a change it is the one in the right unit).
  */
-export async function mergeMedicine(tx: Tx, from: string, into: string): Promise<void> {
-  const [reminder] = await tx.select({ id: reminders.id }).from(reminders).where(eq(reminders.medicineId, from));
-  const [there] = await tx.select({ id: reminders.id }).from(reminders).where(eq(reminders.medicineId, into));
+export function mergeMedicine(tx: Tx, from: string, into: string): void {
+  const reminder = tx.select({ id: reminders.id }).from(reminders).where(eq(reminders.medicineId, from)).get();
+  const there = tx.select({ id: reminders.id }).from(reminders).where(eq(reminders.medicineId, into)).get();
   if (reminder) {
-    if (there) await tx.delete(reminders).where(eq(reminders.id, reminder.id));
-    else await tx.update(reminders).set({ medicineId: into }).where(eq(reminders.id, reminder.id));
+    if (there) tx.delete(reminders).where(eq(reminders.id, reminder.id)).run();
+    else tx.update(reminders).set({ medicineId: into }).where(eq(reminders.id, reminder.id)).run();
   }
-  await tx.update(packages).set({ medicineId: into }).where(eq(packages.medicineId, from));
-  await tx.update(intakes).set({ medicineId: into }).where(eq(intakes.medicineId, from));
-  const tags = await tx
+  tx.update(packages).set({ medicineId: into }).where(eq(packages.medicineId, from)).run();
+  tx.update(intakes).set({ medicineId: into }).where(eq(intakes.medicineId, from)).run();
+  const tags = tx
     .select({ category: medicineCategories.category })
     .from(medicineCategories)
-    .where(eq(medicineCategories.medicineId, from));
+    .where(eq(medicineCategories.medicineId, from))
+    .all();
   if (tags.length > 0) {
-    await tx
-      .insert(medicineCategories)
+    tx.insert(medicineCategories)
       .values(tags.map(({ category }) => ({ medicineId: into, category })))
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .run();
   }
   // Its shopping lines go with it; the medicine it joins has its own.
-  await tx.delete(medicines).where(eq(medicines.id, from));
+  tx.delete(medicines).where(eq(medicines.id, from)).run();
 }

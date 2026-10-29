@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -20,15 +20,18 @@ import {
 import { getRegisterEntry } from '@/data/register';
 import { useReminder, type Reminder } from '@/data/reminders';
 import { buyNew, useInShopping } from '@/data/shopping';
+import { useCabinetReminders, useDayIntakes } from '@/data/today';
 import { daysBetween, expiryMonth, expiryStatus, localDay, unknownForYears } from '@/domain/expiry';
 import { canEdit } from '@/domain/sharing';
 import { stockOf } from '@/domain/stock';
+import { doseToMark, todayDoses } from '@/domain/today';
 import { FORM_ICON, FORM_NAME, UNIT } from '@/features/add/labels';
 import { startPack } from '@/features/add/pack';
 import { startPackChange, useChange } from '@/features/change/draft';
 import { BodyTime } from '@/features/medicine/BodyTime';
 import { useCategoryName } from '@/features/categories/categories';
 import { shownStrength } from '@/features/medicine/strength';
+import { hhmm, useNow } from '@/features/today/NextDoseCard';
 import { useT } from '@/i18n';
 import { BackBar } from '@/ui/BackBar';
 import { Button } from '@/ui/Button';
@@ -75,6 +78,21 @@ export default function MedicineScreen() {
   const cabinet = useCabinets()?.find((c) => c.id === medicine?.cabinetId);
   const [open, setOpen] = useState(0);
   const [taken, setTaken] = useState(false);
+  const taking = useRef(false);
+  // «Прийняти» answers the dose Today would: the reminder's doses of today with their marks.
+  const now = useNow();
+  const plans = useCabinetReminders(medicine?.cabinetId);
+  const marks = useDayIntakes(medicine?.cabinetId, localDay(now));
+  const toMark = useMemo(
+    () =>
+      doseToMark(
+        todayDoses((plans ?? []).filter((r) => r.medicineId === id), marks, localDay(now), hhmm(now)),
+        hhmm(now),
+      ),
+    [plans, marks, id, now],
+  );
+  // The pack the last «−» used up: «+» can bring it back while the card stays.
+  const [emptied, setEmptied] = useState<string | null>(null);
   const [leaflet, setLeaflet] = useState<string | null>(null);
   const [shelfLife, setShelfLife] = useState<number | null>(null);
 
@@ -109,8 +127,8 @@ export default function MedicineScreen() {
   const withIntake = cabinet?.mode === 'with_intake';
   // A member of a shared cabinet counts, takes and disposes; the rest is the admins'.
   const edits = canEdit(cabinet?.role ?? null);
-  const dose = reminder?.times[0]?.dose ?? 1;
-  const today = localDay(new Date());
+  const dose = toMark?.dose ?? reminder?.times[0]?.dose ?? 1;
+  const today = localDay(now);
   const details = [medicine.inn, t(FORM_NAME[form]).toLocaleLowerCase(), shownStrength(medicine.strength)].filter(Boolean).join(', ');
   const subtitle = details.charAt(0).toLocaleUpperCase() + details.slice(1);
 
@@ -201,9 +219,31 @@ export default function MedicineScreen() {
     router.push({ pathname: '/add/search', params: { change: medicine.id, q: medicine.name } });
   };
 
+  // The dose due now (or within the hour, or the last one missed) is marked as
+  // on Today; with none open the intake is one without a reminder.
   const take = async () => {
-    await takeDose({ medicineId: medicine.id, dose, reminderId: reminder?.id ?? null });
-    setTaken(true);
+    if (taking.current) return;
+    taking.current = true;
+    try {
+      await takeDose(
+        toMark
+          ? { medicineId: medicine.id, dose, reminderId: toMark.reminder.id, due: toMark.due }
+          : { medicineId: medicine.id, dose },
+      );
+      setTaken(true);
+    } finally {
+      taking.current = false;
+    }
+  };
+
+  // A «−» that empties the last counted pack keeps the card, so «+» can undo it.
+  const less = async () => {
+    const used = await changeStock(medicine.id, -1);
+    if (used) setEmptied(used);
+  };
+  const more = async () => {
+    await changeStock(medicine.id, 1, emptied);
+    setEmptied(null);
   };
 
   // The card does not clip (it would lose its shadow), so the tint rounds its own outer corners.
@@ -280,18 +320,18 @@ export default function MedicineScreen() {
           </View>
         ) : null}
 
-        {stock !== null ? (
+        {stock !== null || emptied !== null ? (
           <View style={[styles.card, styles.stockCard]}>
             <View style={styles.stockRow}>
               <View style={styles.fill}>
                 <Text style={type.label}>{t('medicine.left')}</Text>
                 <View style={styles.amount}>
-                  <Text style={styles.big}>{stock}</Text>
-                  <Text style={[type.bodyMedium, styles.amountUnit]}>{t('medicine.inPacks', { count: counted, unit })}</Text>
+                  <Text style={styles.big}>{stock ?? 0}</Text>
+                  <Text style={[type.bodyMedium, styles.amountUnit]}>{counted > 0 ? t('medicine.inPacks', { count: counted, unit }) : unit}</Text>
                 </View>
               </View>
-              <SquareButton icon="minus" label={t('medicine.less')} onPress={() => void changeStock(medicine.id, -1)} />
-              <SquareButton icon="plus" label={t('medicine.more')} onPress={() => void changeStock(medicine.id, 1)} />
+              <SquareButton icon="minus" label={t('medicine.less')} onPress={() => void less()} />
+              <SquareButton icon="plus" label={t('medicine.more')} onPress={() => void more()} />
             </View>
             {medicine.lowStockThreshold !== null || medicine.rx ? (
               <View style={styles.stockNote}>

@@ -11,9 +11,11 @@ import {
   latinToCyrillic,
   matchParts,
   packSizes,
+  rankEntries,
   rxFromRegister,
   searchQuery,
   searchText,
+  searchTokens,
   shelfLifeMonths,
   singleInn,
   splitResults,
@@ -183,4 +185,24 @@ test('the matched start of each word is marked', () => {
     { text: 'ьтофер', match: false },
   ]);
   assert.deepEqual(matchParts('Аспірин', 'парацетамол'), [{ text: 'Аспірин', match: false }]);
+});
+
+test('the web search finds prefixes in any column, the name first', () => {
+  const entry = (rowid: number, name: string, inn: string | null, composition: string | null) => ({
+    rowid,
+    columns: [searchTokens(name), searchTokens(inn), searchTokens(composition)],
+  });
+  const entries = [
+    entry(1, 'МІГ® 400', 'Ibuprofen', 'ібупрофен 400 мг'),
+    entry(2, 'НУРОФЄН® ДЛЯ ДІТЕЙ', 'Ibuprofen', 'ібупрофену 100 мг'),
+    entry(3, 'НУРОФЄН®', 'Ibuprofen', 'ібупрофену 200 мг'),
+    entry(4, 'ПАРАЦЕТАМОЛ', 'Paracetamol', 'парацетамол 500 мг'),
+  ];
+  assert.deepEqual(rankEntries(entries, 'нурофен'), [3, 2]);
+  assert.deepEqual(rankEntries(entries, 'nurofen'), [3, 2]);
+  assert.deepEqual(rankEntries(entries, 'нуро 200'), [3]);
+  // Only in the composition for all three: the shorter name first.
+  assert.deepEqual(rankEntries(entries, 'ібупрофен'), [3, 1, 2]);
+  assert.deepEqual(rankEntries(entries, 'аспірин'), []);
+  assert.deepEqual(rankEntries(entries, '  '), []);
 });

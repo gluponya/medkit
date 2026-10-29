@@ -9,6 +9,13 @@
 // (public/telegram-login.html), and the page to the app with the signed
 // result, which the app posts here. The mini app's own launch data is checked
 // by telegram-signin; this is the widget's, signed differently.
+//
+// The anonymous user is not deleted on the merge: the phone may yet fail to
+// open the account's session, and then it goes on as the anonymous user, which
+// must still be in every cabinet. Once the phone is signed in to the account
+// it posts `{ forget: <the anonymous user's id> }` with the account's session,
+// and only then is the anonymous user deleted. A sign-in that failed halfway
+// is simply tried again: the merge changes nothing the second time.
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
@@ -22,8 +29,36 @@ const webUrl = Deno.env.get('MEDKIT_WEB_URL') ?? 'https://medkit.nb-77d18a.worke
 /** A widget result older than this is not taken. */
 const MAX_AGE_S = 24 * 60 * 60;
 
-/** Where the result may be sent: the app, in Expo Go or built. */
-const APP_RETURN = /^(exp|exps|medkit):\/\//;
+/**
+ * Where the result may be sent: the app's own page `signed-in`
+ * (`Linking.createURL('signed-in')` in src/data/account.ts), and nowhere else,
+ * or a crafted `return` would hand the person's Telegram sign-in to someone
+ * else's app. Built, the app is `medkit://signed-in`. In Expo Go it is
+ * `exp://<the computer running Metro>:<port>/--/signed-in`, and any Expo Go
+ * project can be reached that way, so exp:// is taken only for this machine
+ * and private networks (the owner's phone and computer on the same Wi-Fi).
+ * An `expo start --tunnel` host (*.exp.direct) is anyone's, so it is refused;
+ * to use a tunnel, add its exact host to EXPO_GO_HOSTS here and in
+ * public/telegram-login.html. The same check is in that page, because
+ * Telegram can be sent to it directly, without this function.
+ */
+const APP_RETURN = /^medkit:\/\/\/?signed-in$/;
+const EXPO_GO_RETURN = /^exps?:\/\/([A-Za-z0-9.-]+)(?::\d{1,5})?\/--\/signed-in$/;
+const EXPO_GO_HOSTS: string[] = [];
+
+function privateHost(host: string): boolean {
+  if (host === 'localhost' || EXPO_GO_HOSTS.includes(host)) return true;
+  const ip = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!ip) return false;
+  const [a, b] = [Number(ip[1]), Number(ip[2])];
+  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
+}
+
+function appReturn(back: string): boolean {
+  if (APP_RETURN.test(back)) return true;
+  const expo = back.match(EXPO_GO_RETURN);
+  return expo !== null && privateHost(expo[1].toLowerCase());
+}
 
 const encoder = new TextEncoder();
 
@@ -74,12 +109,42 @@ async function caller(service: SupabaseClient, request: Request): Promise<string
   return data.user?.is_anonymous ? data.user.id : null;
 }
 
+/** The signed-in, not anonymous, user that called: the phone after signing in. */
+async function account(service: SupabaseClient, request: Request): Promise<string | null> {
+  const jwt = request.headers.get('Authorization')?.replace(/^Bearer /, '');
+  if (!jwt) return null;
+  const { data } = await service.auth.getUser(jwt);
+  return data.user && !data.user.is_anonymous ? data.user.id : null;
+}
+
+/**
+ * The anonymous user's cabinets, name and the rest go into the account. The
+ * anonymous user stays, still in its cabinets, until `forget`.
+ */
 async function merge(service: SupabaseClient, from: string | null, to: string): Promise<Response | null> {
   if (!from || from === to) return null;
   const merged = await service.rpc('merge_account', { p_from: from, p_to: to });
   if (merged.error) return new Response(merged.error.message, { status: 500 });
-  await service.auth.admin.deleteUser(from);
   return null;
+}
+
+/**
+ * The phone has the account's session now: the anonymous user merged into it
+ * goes. It is merged once more first, for anything it did in between.
+ */
+async function forget(service: SupabaseClient, to: string | null, from: string): Promise<Response> {
+  if (!to) return new Response('sign in to the account first', { status: 401 });
+  const known = await service.from('account_merges').select('from_id').eq('from_id', from).eq('to_id', to);
+  if (known.error) return new Response(known.error.message, { status: 500 });
+  // Never merged into this account, or forgotten already: nothing to do.
+  if (!known.data?.length) return Response.json({ forgotten: false });
+  const merged = await service.rpc('merge_account', { p_from: from, p_to: to });
+  if (merged.error) return new Response(merged.error.message, { status: 500 });
+  const { data } = await service.auth.admin.getUserById(from);
+  if (!data.user?.is_anonymous) return new Response('not an anonymous user', { status: 400 });
+  const deleted = await service.auth.admin.deleteUser(from);
+  if (deleted.error) return new Response(deleted.error.message, { status: 500 });
+  return Response.json({ forgotten: true });
 }
 
 async function withTelegram(service: SupabaseClient, from: string | null, result: string): Promise<Response> {
@@ -121,7 +186,7 @@ Deno.serve(async (request) => {
   if (request.method === 'GET') {
     const back = new URL(request.url).searchParams.get('return') ?? '';
     if (!botToken) return new Response('TELEGRAM_APP_BOT_TOKEN is not set', { status: 503 });
-    if (!APP_RETURN.test(back)) return new Response('return must be the app', { status: 400 });
+    if (!appReturn(back)) return new Response('return must be the app', { status: 400 });
     const page = `${webUrl}/telegram-login?return=${encodeURIComponent(back)}`;
     const auth = new URL('https://oauth.telegram.org/auth');
     auth.searchParams.set('bot_id', botToken.split(':')[0]);
@@ -134,13 +199,15 @@ Deno.serve(async (request) => {
   const body = (await request.json().catch(() => ({}))) as {
     telegram?: unknown;
     apple?: { idToken?: unknown; nonce?: unknown };
+    forget?: unknown;
   };
   const service = createClient(url, serviceKey);
+  if (typeof body.forget === 'string') return forget(service, await account(service, request), body.forget);
   const from = await caller(service, request);
 
   if (typeof body.telegram === 'string') return withTelegram(service, from, body.telegram);
   if (body.apple && typeof body.apple.idToken === 'string' && typeof body.apple.nonce === 'string') {
     return withApple(service, from, body.apple.idToken, body.apple.nonce);
   }
-  return new Response('telegram or apple is required', { status: 400 });
+  return new Response('telegram, apple or forget is required', { status: 400 });
 });

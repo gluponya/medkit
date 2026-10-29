@@ -1,6 +1,6 @@
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -9,7 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { db } from '@/data/db/client';
 import migrations from '@/data/db/migrations/migrations';
-import { rescheduleDoses } from '@/data/notifications';
+import { onNotificationOpen, rescheduleDoses } from '@/data/notifications';
 import { useSession } from '@/data/session';
 import { startSync } from '@/data/sync';
 import { useI18n, useT } from '@/i18n';
@@ -53,6 +53,13 @@ export default function RootLayout() {
     });
     return () => sub.remove();
   }, [success]);
+
+  // A tap on a dose or expiry notification opens the medicine, once the screens are there.
+  const drawn = ready && success;
+  useEffect(
+    () => (drawn ? onNotificationOpen((id) => router.push({ pathname: '/medicine/[id]', params: { id } })) : undefined),
+    [drawn],
+  );
 
   // Shared cabinets sync in the background; the screens only read SQLite.
   useEffect(() => (success ? startSync() : undefined), [success]);

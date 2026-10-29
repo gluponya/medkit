@@ -83,6 +83,19 @@ export function nextDose<D extends { state: DoseState }>(doses: readonly D[]): D
   return doses.find((d) => d.state === 'due' || d.state === 'later') ?? null;
 }
 
+/**
+ * Which of a medicine's doses today «Прийняти» on its screen answers at `now`
+ * (`HH:MM`): the one due, else one coming within the hour, else the latest
+ * missed one. Null when none is open: the intake is then unscheduled.
+ */
+export function doseToMark<D extends { state: DoseState; time: string }>(doses: readonly D[], now: string): D | null {
+  const due = doses.find((d) => d.state === 'due');
+  if (due) return due;
+  const soon = doses.find((d) => d.state === 'later' && minutes(d.time) - minutes(now) <= MISSED_AFTER_MINUTES);
+  if (soon) return soon;
+  return doses.filter((d) => d.state === 'missed').at(-1) ?? null;
+}
+
 /** Minutes from `now` to a dose time, never below zero. */
 export function minutesUntil(now: string, time: string): number {
   return Math.max(0, minutes(time) - minutes(now));

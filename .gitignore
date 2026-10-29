@@ -65,3 +65,6 @@ __pycache__/
 
 # the two-phone sync check: bundle and phone databases
 tools/sync-check/out/
+
+# wrangler dev's local state
+.wrangler/

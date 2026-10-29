@@ -1,0 +1,9 @@
+// The web build of Medkit, served as the Telegram mini app (npx expo export -p web).
+{
+  "name": "medkit",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}

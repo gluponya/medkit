@@ -36,8 +36,9 @@ export default function LowStockScreen() {
   const current = Math.min(value ?? fields.lowStockThreshold ?? stock ?? 0, max);
   const unit = t(UNIT[fields.form ?? 'other']);
   const change = (next: number) => setValue(Math.max(0, Math.min(next, max)));
+  // Only a number she set is saved: what the screen starts from is not a choice.
   const done = () => {
-    set({ lowStockThreshold: current === 0 ? null : current });
+    if (value !== null) set({ lowStockThreshold: current === 0 ? null : current });
     router.back();
   };
 

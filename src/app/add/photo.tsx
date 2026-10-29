@@ -1,12 +1,12 @@
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useBoxPhotos } from '@/features/add/boxPhotos';
+import { CameraAsking, CameraOff, useCamera } from '@/features/add/CameraOff';
 import { useT } from '@/i18n';
-import { Button } from '@/ui/Button';
 import { Icon } from '@/ui/Icon';
 import { colors, radius, spacing } from '@/ui/theme';
 import { type } from '@/ui/typography';
@@ -24,7 +24,7 @@ export default function PhotoScreen() {
   const { width } = useWindowDimensions();
   // then=reminder passes on to the adding it leads to, as from the search.
   const { then } = useLocalSearchParams<{ then?: string }>();
-  const [permission, requestPermission] = useCameraPermissions();
+  const cameraAccess = useCamera();
   const camera = useRef<CameraView>(null);
   const [side, setSide] = useState<Side>('front');
   const [torch, setTorch] = useState(false);
@@ -74,28 +74,15 @@ export default function PhotoScreen() {
     done();
   };
 
-  if (!permission) return <View style={styles.screen} />;
-
-  if (!permission.granted) {
+  if (cameraAccess.state === 'asking') return <CameraAsking onClose={close} />;
+  if (cameraAccess.state === 'off') {
     return (
-      <SafeAreaView style={styles.screen}>
-        <View style={styles.bar}>
-          <Round icon="x" label={t('common.close')} onPress={close} />
-        </View>
-        <View style={styles.ask}>
-          <Icon name="camera" size={40} color={colors.white} />
-          <Text style={[type.sectionTitle, styles.light, styles.center]}>{t('photo.askTitle')}</Text>
-          <Text style={[type.body, styles.muted, styles.center]}>{t('photo.askText')}</Text>
-          <View style={styles.askButton}>
-            {/* Refused once, iOS does not ask again: only Settings can turn it on. */}
-            {permission.canAskAgain ? (
-              <Button label={t('photo.allow')} onPress={() => void requestPermission()} />
-            ) : (
-              <Button label={t('photo.openSettings')} onPress={() => void Linking.openSettings()} />
-            )}
-          </View>
-        </View>
-      </SafeAreaView>
+      <CameraOff
+        text={t('photo.offText')}
+        canAskAgain={cameraAccess.canAskAgain}
+        onAllow={() => void cameraAccess.request()}
+        onClose={close}
+      />
     );
   }
 
@@ -327,6 +314,4 @@ const styles = StyleSheet.create({
     borderRadius: (SHUTTER - 16) / 2,
     backgroundColor: colors.white,
   },
-  ask: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.xxl },
-  askButton: { alignSelf: 'stretch', marginTop: spacing.lg },
 });

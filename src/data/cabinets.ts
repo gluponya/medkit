@@ -8,6 +8,7 @@ import { type CabinetIcon, type CabinetMode, type Place } from '@/domain/places'
 
 import { db } from './db/client';
 import { cabinets, medicines, packages } from './db/schema';
+import { useLiveRows } from './live';
 import { rescheduleDoses } from './notifications';
 import { useSession } from './session';
 import { requestSync } from './sync';
@@ -59,12 +60,13 @@ export function useCurrentCabinet(): Cabinet | null | undefined {
 }
 
 export function useMedicineCount(cabinetId: string | undefined): number {
-  const { data } = useLiveQuery(
+  const { data } = useLiveRows(
     db
       .select({ n: count() })
       .from(medicines)
       .where(eq(medicines.cabinetId, cabinetId ?? '')),
     [cabinetId],
+    ['medicines'],
   );
   return data[0]?.n ?? 0;
 }
@@ -103,12 +105,15 @@ export function useCabinetCounts(): Map<string, CabinetCounts> {
   const { data: meds } = useLiveQuery(
     db.select({ cabinetId: medicines.cabinetId, n: count() }).from(medicines).groupBy(medicines.cabinetId),
   );
-  const { data: packs } = useLiveQuery(
+  // Packs follow their medicines too: a moved medicine takes its packs along.
+  const { data: packs } = useLiveRows(
     db
       .select({ cabinetId: medicines.cabinetId, medicineId: packages.medicineId, expires: packages.expires })
       .from(packages)
       .innerJoin(medicines, eq(medicines.id, packages.medicineId))
       .where(eq(packages.status, 'active')),
+    [],
+    ['packages', 'medicines'],
   );
   return useMemo(() => {
     const today = localDay(new Date());

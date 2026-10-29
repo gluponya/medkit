@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Alert } from 'react-native';
 
 import { rememberCode } from '@/data/barcodes';
 import { useCurrentCabinet } from '@/data/cabinets';
@@ -38,6 +39,9 @@ export default function CategoriesStep() {
       });
       if (gtin) rememberCode(gtin, { registerId: null, name: draft.name.trim(), form: draft.form, packSize: null });
       finishAdd(added);
+    } catch (e) {
+      if (__DEV__) console.warn('add failed:', e);
+      Alert.alert(t('common.saveFailed'));
     } finally {
       setSaving(false);
     }

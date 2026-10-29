@@ -1,4 +1,4 @@
-import { count, eq } from 'drizzle-orm';
+import { asc, count, eq, inArray } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useMemo } from 'react';
 import { uuidv7 } from 'uuidv7';
@@ -47,21 +47,33 @@ export function useRemindedMedicines(cabinetId: string | undefined): Set<string>
 }
 
 /**
- * Saves a medicine's reminder, replacing the one it had: the screen edits one
- * plan per medicine. The phone's alarms are laid out again afterwards.
+ * Saves a medicine's reminder: the screen edits one plan per medicine. One
+ * already there is changed in place, so the intakes that answer it keep
+ * pointing at it; `created_at` moves to now, as Today counts doses from when
+ * the plan was saved. The phone's alarms are laid out again afterwards.
  */
 export async function saveReminder(medicineId: string, plan: ReminderPlan): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx.delete(reminders).where(eq(reminders.medicineId, medicineId));
-    await tx.insert(reminders).values({
-      id: uuidv7(),
-      medicineId,
-      schedule: plan.schedule,
-      times: [...plan.times],
-      daysOfWeek: plan.daysOfWeek ? [...plan.daysOfWeek] : null,
-      start: plan.start,
-      days: plan.days,
-    });
+  const fields = {
+    schedule: plan.schedule,
+    times: [...plan.times],
+    daysOfWeek: plan.daysOfWeek ? [...plan.daysOfWeek] : null,
+    start: plan.start,
+    days: plan.days,
+  };
+  // Sync: drizzle's expo-sqlite transaction commits when the callback returns.
+  db.transaction((tx) => {
+    const [kept, ...extra] = tx
+      .select({ id: reminders.id })
+      .from(reminders)
+      .where(eq(reminders.medicineId, medicineId))
+      .orderBy(asc(reminders.createdAt))
+      .all();
+    if (kept) {
+      tx.update(reminders).set({ ...fields, createdAt: new Date().toISOString() }).where(eq(reminders.id, kept.id)).run();
+      if (extra.length > 0) tx.delete(reminders).where(inArray(reminders.id, extra.map((r) => r.id))).run();
+    } else {
+      tx.insert(reminders).values({ id: uuidv7(), medicineId, ...fields }).run();
+    }
   });
   await rescheduleDoses();
 }

@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import 'react-native-url-polyfill/auto';
 
+import { telegramInitData } from '@/ui/telegram-shell';
+
 /**
  * The Supabase client, for shared cabinets only (docs/model.md, "Syncing a
  * shared cabinet"). Screens never call it: they read SQLite, and sharing goes
@@ -31,12 +33,31 @@ export const supabase = createClient(url || 'http://backend.invalid', anonKey ||
 /**
  * The person's id on the server: the anonymous user of the first share or
  * join, kept on the phone. Made on first need, so a phone that never shares
- * never signs in.
+ * never signs in. Inside Telegram the account is the person's Telegram one
+ * instead (docs/telegram.md), so it is the same on every device they open it.
  */
 export async function signedIn(): Promise<string> {
   const { data } = await supabase.auth.getSession();
   if (data.session) return data.session.user.id;
+  const telegram = telegramInitData();
+  if (telegram) return signInWithTelegram(telegram);
   const made = await supabase.auth.signInAnonymously();
   if (made.error || !made.data.user) throw made.error ?? new Error('no user from the server');
   return made.data.user.id;
+}
+
+/**
+ * Telegram's signed launch data goes to the server, which checks the signature
+ * and answers with a one-time token; the token becomes the session here,
+ * GoTrue's own, kept and refreshed as any other. As Freshka's.
+ */
+async function signInWithTelegram(initData: string): Promise<string> {
+  const { data, error } = await supabase.functions.invoke<{ tokenHash?: string }>('telegram-signin', {
+    body: { initData },
+  });
+  if (error) throw error;
+  if (!data?.tokenHash) throw new Error('no token from the server');
+  const opened = await supabase.auth.verifyOtp({ token_hash: data.tokenHash, type: 'email' });
+  if (opened.error || !opened.data.user) throw opened.error ?? new Error('no user from the server');
+  return opened.data.user.id;
 }

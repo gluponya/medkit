@@ -235,6 +235,52 @@ export function searchQuery(text: string): string | null {
 }
 
 /**
+ * The web build's SQLite has no FTS5, so there the Register is searched in
+ * memory, the way register_search would: words in searchText() form, split and
+ * stripped of marks as the unicode61 tokenizer does.
+ */
+export type SearchTokens = { rowid: number; columns: readonly (readonly string[])[] };
+
+function plainWord(word: string): string {
+  return word.normalize('NFD').replace(/\p{M}/gu, '');
+}
+
+export function searchTokens(text: string | null): string[] {
+  if (!text) return [];
+  return plainWord(searchText(text)).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+}
+
+/** As bm25(register_search, 10, 3, 1): name, then INN, then composition. */
+const COLUMN_WEIGHTS = [10, 3, 1];
+
+/**
+ * The rowids matching what was typed, best first, by the rules of searchQuery:
+ * every word is a prefix, all of them must match. A word counts by the best
+ * column it is in; among equals a shorter name comes first.
+ */
+export function rankEntries(entries: readonly SearchTokens[], text: string): number[] {
+  const words = searchWords(text).map((ways) => ways.map(plainWord));
+  if (words.length === 0) return [];
+  const found: { rowid: number; score: number; length: number }[] = [];
+  for (const entry of entries) {
+    let score = 0;
+    for (const ways of words) {
+      let best = 0;
+      entry.columns.forEach((tokens, column) => {
+        if (tokens.some((token) => ways.some((w) => token.startsWith(w)))) best = Math.max(best, COLUMN_WEIGHTS[column]);
+      });
+      if (best === 0) {
+        score = 0;
+        break;
+      }
+      score += best;
+    }
+    if (score > 0) found.push({ rowid: entry.rowid, score, length: entry.columns[0].length });
+  }
+  return found.sort((a, b) => b.score - a.score || a.length - b.length).map((f) => f.rowid);
+}
+
+/**
  * The Register writes names in capitals with marks: «НУРОФЄН® ДЛЯ ДІТЕЙ». The
  * app shows them as a sentence, «Нурофєн для дітей», as the box reads.
  */

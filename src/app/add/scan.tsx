@@ -1,10 +1,9 @@
-import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
+import { CameraView, type BarcodeScanningResult } from 'expo-camera';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -21,6 +20,7 @@ import { getRegisterEntry } from '@/data/register';
 import { useSession } from '@/data/session';
 import { OPEN_GATE, passScan, readScan, type Scan } from '@/domain/barcode';
 import { displayName } from '@/domain/register';
+import { CameraAsking, CameraOff, useCamera } from '@/features/add/CameraOff';
 import { useDraft, type AfterAdd } from '@/features/add/draft';
 import { useScan } from '@/features/add/scan';
 import { useT } from '@/i18n';
@@ -52,7 +52,7 @@ export default function ScanScreen() {
   const after: AfterAdd = then === 'reminder' ? 'reminder' : 'medicine';
   const cabinet = useCurrentCabinet();
   const known = useKnownMedicines(cabinet?.id);
-  const [permission, requestPermission] = useCameraPermissions();
+  const camera = useCamera();
   const [focused, setFocused] = useState(true);
   const [torch, setTorch] = useState(false);
   const [looking, setLooking] = useState(false);
@@ -158,28 +158,16 @@ export default function ScanScreen() {
     void undoAdd(added);
   };
 
-  if (!permission) return <View style={styles.screen} />;
-
-  if (!permission.granted) {
+  if (camera.state === 'asking') return <CameraAsking onClose={() => router.back()} />;
+  if (camera.state === 'off') {
     return (
-      <SafeAreaView style={styles.screen}>
-        <View style={styles.bar}>
-          <Round icon="x" label={t('common.close')} onPress={() => router.back()} />
-        </View>
-        <View style={styles.ask}>
-          <Icon name="scan" size={40} color={colors.white} />
-          <Text style={[type.sectionTitle, styles.light, styles.center]}>{t('photo.askTitle')}</Text>
-          <Text style={[type.body, styles.muted, styles.center]}>{t('scan.askText')}</Text>
-          <View style={styles.askButton}>
-            {/* Refused once, iOS does not ask again: only Settings can turn it on. */}
-            {permission.canAskAgain ? (
-              <Button label={t('photo.allow')} onPress={() => void requestPermission()} />
-            ) : (
-              <Button label={t('photo.openSettings')} onPress={() => void Linking.openSettings()} />
-            )}
-          </View>
-        </View>
-      </SafeAreaView>
+      <CameraOff
+        text={t('scan.offText')}
+        canAskAgain={camera.canAskAgain}
+        onAllow={() => void camera.request()}
+        onClose={() => router.back()}
+        onByName={byName}
+      />
     );
   }
 
@@ -447,8 +435,6 @@ const styles = StyleSheet.create({
   },
   chipOn: { backgroundColor: colors.white },
   noCode: { alignSelf: 'center', padding: spacing.sm },
-  ask: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.xxl },
-  askButton: { alignSelf: 'stretch', marginTop: spacing.lg },
   missIcon: {
     width: 56,
     height: 56,

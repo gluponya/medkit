@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ReminderPlan } from './reminders.ts';
-import { daysLeft, minutesUntil, nextDose, todayDoses, type IntakeMark } from './today.ts';
+import { daysLeft, doseToMark, minutesUntil, nextDose, todayDoses, type IntakeMark } from './today.ts';
 
 const plan = (medicineId: string, times: string[], over: Partial<ReminderPlan & { since: string }> = {}) => ({
   medicineId,
@@ -80,4 +80,16 @@ test('minutesUntil and daysLeft', () => {
   assert.equal(daysLeft({ start: '2026-10-20', days: 10 }, '2026-10-24'), 6);
   assert.equal(daysLeft({ start: '2026-10-20', days: 3 }, '2026-10-24'), 0);
   assert.equal(daysLeft({ start: '2026-10-20', days: null }, '2026-10-24'), null);
+});
+
+test('doseToMark picks the due dose, then one within the hour, then the latest missed', () => {
+  const plans = [plan('a', ['08:00', '12:00', '14:00', '20:00'])];
+  const at = (now: string) => doseToMark(todayDoses(plans, [], '2026-10-24', now), now)?.time ?? null;
+  assert.equal(at('12:30'), '12:00');
+  assert.equal(at('13:10'), '14:00');
+  assert.equal(at('16:00'), '14:00');
+  assert.equal(at('07:30'), '08:00');
+  assert.equal(at('06:00'), null);
+  const answered = todayDoses(plans, [taken('a', '2026-10-24T14:00')], '2026-10-24', '16:00');
+  assert.equal(doseToMark(answered, '16:00')?.time, '12:00');
 });

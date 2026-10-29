@@ -10,6 +10,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+import { withCors } from '../_shared/cors.ts';
 import { BOX_PROMPTS, type BoxSide } from './prompt.ts';
 
 const DAILY_LIMIT = 30;
@@ -94,7 +95,8 @@ async function askModel(photo: string, side: BoxSide, key: string): Promise<Mode
   }
 }
 
-Deno.serve(async (request) => {
+// withCors: the Telegram mini app is a page (docs/telegram.md).
+Deno.serve(withCors(async (request) => {
   if (request.method !== 'POST') return new Response('POST only', { status: 405 });
 
   const caller = createClient(url, anonKey, {
@@ -125,4 +127,4 @@ Deno.serve(async (request) => {
     return new Response(reply.message, { status: reply.status });
   }
   return Response.json({ answer: reply.answer });
-});
+}));

@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 import { db } from './db/client';
 import { cabinets, customCategories } from './db/schema';
@@ -15,7 +16,8 @@ export async function wipeAll(): Promise<void> {
     await tx.delete(cabinets);
     await tx.delete(customCategories);
   });
-  await Notifications.cancelAllScheduledNotificationsAsync();
+  // The web build schedules none (notifications.web.ts).
+  if (Platform.OS !== 'web') await Notifications.cancelAllScheduledNotificationsAsync();
   useSession.setState({ currentCabinetId: null, stepsLater: [], stepsFinished: false, switcherHint: 'unseen' });
   usePrefs.setState(usePrefs.getInitialState());
 }

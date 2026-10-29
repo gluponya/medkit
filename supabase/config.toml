@@ -415,5 +415,10 @@ enabled = true
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
 
+# Signing in inside Telegram (docs/telegram.md): the person has no session yet,
+# only Telegram's signed launch data, which the function checks itself.
+[functions.telegram-signin]
+verify_jwt = false
+
 [functions.sign-in]
 verify_jwt = false

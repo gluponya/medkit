@@ -1,16 +1,17 @@
 import { and, asc, count, eq, ne } from 'drizzle-orm';
-import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useMemo } from 'react';
 import { uuidv7 } from 'uuidv7';
 
 import type { MedicineForm } from '@/domain/medicine';
 import type { PackRow } from '@/domain/overview';
 import { searchText } from '@/domain/register';
-import { packOrder, packToTake } from '@/domain/stock';
+import { canEdit } from '@/domain/sharing';
+import { packOrder, packToTake, takeFrom } from '@/domain/stock';
 
 import { db } from './db/client';
-import { intakes, medicineCategories, medicines, packages } from './db/schema';
-import { forgetRepeat, rescheduleDoses } from './notifications';
+import { cabinets, intakes, medicineCategories, medicines, packages } from './db/schema';
+import { useLiveRows } from './live';
+import { forgetDose, rescheduleDoses } from './notifications';
 
 export type Medicine = typeof medicines.$inferSelect;
 export type Package = typeof packages.$inferSelect;
@@ -21,6 +22,18 @@ export interface Added {
   packageId: string;
   /** The medicine was made by this add, so «Скасувати» removes it too. */
   isNew: boolean;
+}
+
+/**
+ * The person is only a member of this shared cabinet: the server refuses
+ * their new medicines and packs, so the phone does not make them either.
+ */
+export class NotAllowedError extends Error {}
+
+/** A member adds nothing: the server would refuse it and leave it on this phone alone. */
+function assertCanAdd(cabinetId: string): void {
+  const cabinet = db.select({ role: cabinets.role }).from(cabinets).where(eq(cabinets.id, cabinetId)).get();
+  if (cabinet && !canEdit(cabinet.role)) throw new NotAllowedError('a member cannot add to ' + cabinetId);
 }
 
 /**
@@ -45,31 +58,36 @@ export async function addMedicine(input: {
     rx: boolean;
   };
 }): Promise<Added> {
+  assertCanAdd(input.cabinetId);
   const medicineId = uuidv7();
   const packageId = uuidv7();
-  await db.transaction(async (tx) => {
-    await tx.insert(medicines).values({
-      id: medicineId,
-      cabinetId: input.cabinetId,
-      name: input.name.trim(),
-      form: input.form,
-      inn: input.register?.inn ?? null,
-      strength: input.register?.strength ?? null,
-      manufacturer: input.register?.manufacturer ?? null,
-      rx: input.register?.rx ?? false,
-      registerId: input.register?.id ?? null,
-    });
-    await tx.insert(packages).values({
-      id: packageId,
-      medicineId,
-      expires: input.expires,
-      quantity: input.quantity,
-      gtin: input.gtin ?? null,
-    });
+  db.transaction((tx) => {
+    tx.insert(medicines)
+      .values({
+        id: medicineId,
+        cabinetId: input.cabinetId,
+        name: input.name.trim(),
+        form: input.form,
+        inn: input.register?.inn ?? null,
+        strength: input.register?.strength ?? null,
+        manufacturer: input.register?.manufacturer ?? null,
+        rx: input.register?.rx ?? false,
+        registerId: input.register?.id ?? null,
+      })
+      .run();
+    tx.insert(packages)
+      .values({
+        id: packageId,
+        medicineId,
+        expires: input.expires,
+        quantity: input.quantity,
+        gtin: input.gtin ?? null,
+      })
+      .run();
     if (input.categories.length > 0) {
-      await tx
-        .insert(medicineCategories)
-        .values(input.categories.map((category) => ({ medicineId, category })));
+      tx.insert(medicineCategories)
+        .values(input.categories.map((category) => ({ medicineId, category })))
+        .run();
     }
   });
   return { medicineId, packageId, isNew: true };
@@ -82,6 +100,12 @@ export async function addPackage(input: {
   quantity: number | null;
   gtin?: string | null;
 }): Promise<Added> {
+  const medicine = db
+    .select({ cabinetId: medicines.cabinetId })
+    .from(medicines)
+    .where(eq(medicines.id, input.medicineId))
+    .get();
+  if (medicine) assertCanAdd(medicine.cabinetId);
   const packageId = uuidv7();
   await db.insert(packages).values({
     id: packageId,
@@ -105,24 +129,33 @@ export async function undoAdd(added: Added): Promise<void> {
 /** A cabinet's medicines by name, for «Що нагадати прийняти?». */
 export function useCabinetMedicines(cabinetId: string | undefined): Medicine[] | undefined {
   const id = cabinetId ?? '';
-  const { data, updatedAt } = useLiveQuery(
+  const { data, updatedAt } = useLiveRows(
     db.select().from(medicines).where(eq(medicines.cabinetId, id)).orderBy(asc(medicines.name)),
     [id],
+    ['medicines'],
   );
   return updatedAt ? data : undefined;
 }
 
-type Known = { id: string; name: string; registerId: string | null };
+type Known = { id: string; name: string; registerId: string | null; form: MedicineForm | null };
 
 /**
  * The cabinet's medicine that a Register entry is: picked from the same entry,
  * or typed by hand under the same name. Null when the cabinet does not have it.
+ * With `form`, only one of that form counts: moving joins «Нурофен» tablets
+ * with «Нурофен» tablets, never with the syrup, whose numbers are in ml.
  */
-export function sameMedicine<T extends Known>(known: readonly T[], registerId: string, name: string): T | null {
+export function sameMedicine<T extends Known>(
+  known: readonly T[],
+  registerId: string,
+  name: string,
+  form?: MedicineForm | null,
+): T | null {
   const key = searchText(name.trim());
+  const candidates = form === undefined ? known : known.filter((m) => m.form === form);
   return (
-    known.find((m) => m.registerId === registerId) ??
-    known.find((m) => searchText(m.name.trim()) === key) ??
+    candidates.find((m) => m.registerId === registerId) ??
+    candidates.find((m) => searchText(m.name.trim()) === key) ??
     null
   );
 }
@@ -130,12 +163,13 @@ export function sameMedicine<T extends Known>(known: readonly T[], registerId: s
 /** Every medicine of a cabinet, only what tells them apart: for «Є в «Дім»». */
 export function useKnownMedicines(cabinetId: string | undefined): Known[] {
   const id = cabinetId ?? '';
-  const { data } = useLiveQuery(
+  const { data } = useLiveRows(
     db
-      .select({ id: medicines.id, name: medicines.name, registerId: medicines.registerId })
+      .select({ id: medicines.id, name: medicines.name, registerId: medicines.registerId, form: medicines.form })
       .from(medicines)
       .where(eq(medicines.cabinetId, id)),
     [id],
+    ['medicines'],
   );
   return data;
 }
@@ -143,31 +177,32 @@ export function useKnownMedicines(cabinetId: string | undefined): Known[] {
 /** How many active packs a medicine has. */
 export function usePackCount(medicineId: string | undefined): number {
   const id = medicineId ?? '';
-  const { data } = useLiveQuery(
+  const { data } = useLiveRows(
     db
       .select({ n: count() })
       .from(packages)
       .where(and(eq(packages.medicineId, id), eq(packages.status, 'active'))),
     [id],
+    ['packages'],
   );
   return data[0]?.n ?? 0;
 }
 
 /**
- * Every medicine of a cabinet with its active packs, one row per pack. A live
- * query follows only its own table, so medicines and packs are two queries:
- * an add changes the first, a dose or a disposed pack the second.
+ * Every medicine of a cabinet with its active packs, one row per pack. The
+ * packs follow the medicines too: one moved to another cabinet takes its packs.
  */
 export function usePackRows(cabinetId: string | undefined): PackRow[] {
   const id = cabinetId ?? '';
-  const { data: meds } = useLiveQuery(db.select().from(medicines).where(eq(medicines.cabinetId, id)), [id]);
-  const { data: packs } = useLiveQuery(
+  const { data: meds } = useLiveRows(db.select().from(medicines).where(eq(medicines.cabinetId, id)), [id], ['medicines']);
+  const { data: packs } = useLiveRows(
     db
       .select({ medicineId: packages.medicineId, expires: packages.expires, quantity: packages.quantity })
       .from(packages)
       .innerJoin(medicines, eq(medicines.id, packages.medicineId))
       .where(and(eq(medicines.cabinetId, id), eq(packages.status, 'active'))),
     [id],
+    ['packages', 'medicines'],
   );
   return useMemo(() => {
     const rows: PackRow[] = [];
@@ -183,28 +218,30 @@ export function usePackRows(cabinetId: string | undefined): PackRow[] {
 
 /** Undefined while loading, null when it is gone (deleted from another screen). */
 export function useMedicine(id: string): Medicine | null | undefined {
-  const { data, updatedAt } = useLiveQuery(db.select().from(medicines).where(eq(medicines.id, id)), [id]);
+  const { data, updatedAt } = useLiveRows(db.select().from(medicines).where(eq(medicines.id, id)), [id], ['medicines']);
   return updatedAt ? (data[0] ?? null) : undefined;
 }
 
 /** The active packs, the one in use first. */
 export function usePacks(medicineId: string): Package[] {
-  const { data } = useLiveQuery(
+  const { data } = useLiveRows(
     db
       .select()
       .from(packages)
       .where(and(eq(packages.medicineId, medicineId), eq(packages.status, 'active')))
       .orderBy(asc(packages.expires)),
     [medicineId],
+    ['packages'],
   );
   return useMemo(() => packOrder(data), [data]);
 }
 
 /** Undefined while loading, so an edit does not start from an empty set. */
 export function useMedicineCategories(medicineId: string): string[] | undefined {
-  const { data, updatedAt } = useLiveQuery(
+  const { data, updatedAt } = useLiveRows(
     db.select().from(medicineCategories).where(eq(medicineCategories.medicineId, medicineId)),
     [medicineId],
+    ['medicine_categories'],
   );
   return useMemo(() => (updatedAt ? data.map((c) => c.category) : undefined), [data, updatedAt]);
 }
@@ -237,9 +274,8 @@ export function medicineFields(m: Medicine, categories: readonly string[]): Medi
 /** «Зберегти» on «Деталі»: the medicine and its tags, all or nothing. */
 export async function updateMedicine(id: string, fields: MedicineFields): Promise<void> {
   const text = (value: string) => value.trim() || null;
-  await db.transaction(async (tx) => {
-    await tx
-      .update(medicines)
+  db.transaction((tx) => {
+    tx.update(medicines)
       .set({
         name: fields.name.trim(),
         form: fields.form,
@@ -249,51 +285,62 @@ export async function updateMedicine(id: string, fields: MedicineFields): Promis
         lowStockThreshold: fields.lowStockThreshold,
         rx: fields.rx,
       })
-      .where(eq(medicines.id, id));
-    await writeCategories(tx, id, fields.categories);
+      .where(eq(medicines.id, id))
+      .run();
+    writeCategories(tx, id, fields.categories);
   });
 }
 
 /** «Зберегти» on Categories opened from a chip on the medicine. */
 export async function setMedicineCategories(id: string, categories: readonly string[]): Promise<void> {
-  await db.transaction((tx) => writeCategories(tx, id, categories));
+  db.transaction((tx) => writeCategories(tx, id, categories));
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-async function writeCategories(tx: Tx, medicineId: string, categories: readonly string[]): Promise<void> {
-  await tx.delete(medicineCategories).where(eq(medicineCategories.medicineId, medicineId));
+function writeCategories(tx: Tx, medicineId: string, categories: readonly string[]): void {
+  tx.delete(medicineCategories).where(eq(medicineCategories.medicineId, medicineId)).run();
   if (categories.length > 0) {
-    await tx.insert(medicineCategories).values(categories.map((category) => ({ medicineId, category })));
+    tx.insert(medicineCategories).values(categories.map((category) => ({ medicineId, category }))).run();
   }
 }
 
 const now = () => new Date().toISOString();
 
-async function activePacks(medicineId: string): Promise<Package[]> {
-  return db
-    .select()
-    .from(packages)
-    .where(and(eq(packages.medicineId, medicineId), eq(packages.status, 'active')));
-}
-
 /**
  * «−» and «+» on the stock card: the pack in use gives one or gets one back.
- * A pack that reaches zero is used up and leaves the list.
+ * A pack that reaches zero is used up and leaves the list; its id is returned,
+ * so a «+» right after can pass it as `emptied` and bring it back when no
+ * counted pack is left to take the one.
  */
-export async function changeStock(medicineId: string, delta: 1 | -1): Promise<void> {
-  const packs = await activePacks(medicineId);
-  const pack = delta < 0 ? packToTake(packs) : packOrder(packs).find((p) => p.quantity !== null);
-  if (!pack || pack.quantity === null) return;
-  const quantity = Math.max(0, pack.quantity + delta);
-  await db
-    .update(packages)
-    .set({
-      quantity,
-      openedAt: pack.openedAt ?? (delta < 0 ? now() : null),
-      status: quantity === 0 ? 'used_up' : 'active',
-    })
-    .where(eq(packages.id, pack.id));
+export async function changeStock(medicineId: string, delta: 1 | -1, emptied?: string | null): Promise<string | null> {
+  // Sync: drizzle's expo-sqlite transaction commits when the callback returns.
+  return db.transaction((tx) => {
+    const packs = tx
+      .select()
+      .from(packages)
+      .where(and(eq(packages.medicineId, medicineId), eq(packages.status, 'active')))
+      .all();
+    let pack = delta < 0 ? packToTake(packs) : packOrder(packs).find((p) => p.quantity !== null);
+    if (!pack && delta > 0 && emptied) {
+      pack = tx
+        .select()
+        .from(packages)
+        .where(and(eq(packages.id, emptied), eq(packages.medicineId, medicineId), eq(packages.status, 'used_up')))
+        .get();
+    }
+    if (!pack || pack.quantity === null) return null;
+    const quantity = Math.max(0, pack.quantity + delta);
+    tx.update(packages)
+      .set({
+        quantity,
+        openedAt: pack.openedAt ?? (delta < 0 ? now() : null),
+        status: quantity === 0 ? 'used_up' : 'active',
+      })
+      .where(eq(packages.id, pack.id))
+      .run();
+    return quantity === 0 ? pack.id : null;
+  });
 }
 
 /** «Вказати термін» on a pack that was added with «Не знаю». */
@@ -328,7 +375,11 @@ export async function deleteMedicine(id: string): Promise<void> {
 
 /**
  * A dose taken: an Intake, and the dose comes out of the pack in use (opened
- * first, then the one expiring soonest). An uncounted medicine only records it.
+ * first, then the one expiring soonest), what that pack lacks from the next.
+ * Each pack it came out of gets an Intake row of its own with the amount, all
+ * with the same time, reminder and due, so undo puts back exactly that; a
+ * dose counts once however many rows it has. An uncounted medicine only
+ * records it. A dose already answered is left as it is (a second tap).
  */
 export async function takeDose(input: {
   medicineId: string;
@@ -336,54 +387,68 @@ export async function takeDose(input: {
   reminderId?: string | null;
   due?: string | null;
 }): Promise<void> {
-  await db.transaction(async (tx) => {
-    const packs = await tx
+  const at = now();
+  const due = input.due ?? null;
+  // Sync: drizzle's expo-sqlite transaction commits when the callback returns.
+  const done = db.transaction((tx) => {
+    if (due !== null) {
+      const answered = tx
+        .select({ id: intakes.id })
+        .from(intakes)
+        .where(and(eq(intakes.medicineId, input.medicineId), eq(intakes.due, due)))
+        .get();
+      if (answered) return false;
+    }
+    const packs = tx
       .select()
       .from(packages)
-      .where(and(eq(packages.medicineId, input.medicineId), eq(packages.status, 'active')));
-    const pack = packToTake(packs);
-    if (pack && pack.quantity !== null) {
-      const quantity = Math.max(0, pack.quantity - input.dose);
-      await tx
-        .update(packages)
-        .set({ quantity, openedAt: pack.openedAt ?? now(), status: quantity === 0 ? 'used_up' : 'active' })
-        .where(eq(packages.id, pack.id));
+      .where(and(eq(packages.medicineId, input.medicineId), eq(packages.status, 'active')))
+      .all();
+    const parts = takeFrom(packs, input.dose);
+    for (const { pack, amount } of parts) {
+      const quantity = (pack.quantity ?? 0) - amount;
+      tx.update(packages)
+        .set({ quantity, openedAt: pack.openedAt ?? at, status: quantity === 0 ? 'used_up' : 'active' })
+        .where(eq(packages.id, pack.id))
+        .run();
     }
-    await tx.insert(intakes).values({
-      id: uuidv7(),
-      medicineId: input.medicineId,
-      reminderId: input.reminderId ?? null,
-      packageId: pack?.id ?? null,
-      dose: input.dose,
-      status: 'taken',
-      due: input.due ?? null,
-      at: now(),
-    });
+    const mark = { medicineId: input.medicineId, reminderId: input.reminderId ?? null, status: 'taken' as const, due, at };
+    tx.insert(intakes)
+      .values(
+        parts.length > 0
+          ? parts.map(({ pack, amount }) => ({ ...mark, id: uuidv7(), packageId: pack.id, dose: amount }))
+          : [{ ...mark, id: uuidv7(), packageId: null, dose: input.dose }],
+      )
+      .run();
+    return true;
   });
-  if (input.reminderId && input.due) await forgetRepeat(input.reminderId, input.due);
+  if (done && input.reminderId && due) await forgetDose(input.reminderId, due);
 }
 
 /**
- * A dose marked taken by mistake: the mark goes and its pills go back into
- * the pack they came from, which is active again if that emptied it.
+ * A dose marked taken by mistake: its marks go (matched by medicine and due,
+ * as Today matches them) and each puts its amount back into the pack it came
+ * out of, which is active again if that emptied it.
  */
-export async function untakeDose(input: { reminderId: string; due: string }): Promise<void> {
-  await db.transaction(async (tx) => {
-    const marks = await tx
+export async function untakeDose(input: { medicineId: string; due: string }): Promise<void> {
+  // Sync: drizzle's expo-sqlite transaction commits when the callback returns.
+  db.transaction((tx) => {
+    const marks = tx
       .select()
       .from(intakes)
-      .where(and(eq(intakes.reminderId, input.reminderId), eq(intakes.due, input.due), eq(intakes.status, 'taken')));
+      .where(and(eq(intakes.medicineId, input.medicineId), eq(intakes.due, input.due), eq(intakes.status, 'taken')))
+      .all();
     for (const mark of marks) {
       if (mark.packageId) {
-        const [pack] = await tx.select().from(packages).where(eq(packages.id, mark.packageId));
+        const pack = tx.select().from(packages).where(eq(packages.id, mark.packageId)).get();
         if (pack && pack.quantity !== null && pack.status !== 'disposed') {
-          await tx
-            .update(packages)
+          tx.update(packages)
             .set({ quantity: pack.quantity + mark.dose, status: 'active' })
-            .where(eq(packages.id, pack.id));
+            .where(eq(packages.id, pack.id))
+            .run();
         }
       }
-      await tx.delete(intakes).where(eq(intakes.id, mark.id));
+      tx.delete(intakes).where(eq(intakes.id, mark.id)).run();
     }
   });
   await rescheduleDoses();

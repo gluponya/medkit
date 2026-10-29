@@ -44,6 +44,21 @@ export function courseEnd(plan: Pick<ReminderPlan, 'start' | 'days'>): string | 
   return plan.days === null ? null : addDays(plan.start, plan.days - 1);
 }
 
+/**
+ * The first day of a plan saved over `saved` on `today`: a running course
+ * keeps its start, so changing a time does not begin it again. A new plan, a
+ * changed length or a course already over starts today.
+ */
+export function startOf(
+  saved: Pick<ReminderPlan, 'schedule' | 'start' | 'days'> | null,
+  plan: Pick<ReminderPlan, 'schedule' | 'days'>,
+  today: string,
+): string {
+  if (!saved || saved.schedule === 'as_needed' || plan.schedule === 'as_needed' || saved.days !== plan.days) return today;
+  const end = courseEnd(saved);
+  return end !== null && end < today ? today : saved.start;
+}
+
 /** Whether a reminder has doses on a day. */
 export function dosesOn(plan: ReminderPlan, day: string): boolean {
   if (plan.schedule === 'as_needed' || day < plan.start) return false;

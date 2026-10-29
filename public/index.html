@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      An app, not a page: never zoomed (by a pinch, a double tap, or the phone
+      zooming into a field as it is focused) and laid out to the screen's
+      edges, the insets read through env() as react-native-safe-area-context
+      does. The keyboard shrinks the page, as it shrinks the window on a phone.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <title>%WEB_TITLE%</title>
+    <style id="expo-reset">
+      /* The page is exactly the window, and never scrolls or bounces: every
+         scroll is a ScrollView's own. The splash colour shows before the app does. */
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        overscroll-behavior: none;
+        background-color: #eef3fe;
+      }
+      /* What a phone's browser does to a page and an app never shows: the grey
+         flash of a tapped element, text and pictures taken up by a long press,
+         type grown on its own. */
+      body {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+        touch-action: manipulation;
+      }
+      input,
+      textarea {
+        -webkit-user-select: text;
+        user-select: text;
+      }
+      /* The app draws its own focused field; the browser's ring would sit inside it. */
+      input:focus,
+      textarea:focus {
+        outline: none;
+      }
+      img {
+        -webkit-user-drag: none;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { takeDose } from '@/data/medicines';
@@ -44,6 +44,7 @@ export function NextDoseCard({
 }) {
   const t = useT();
   const [snoozedTo, setSnoozedTo] = useState<{ due: string; at: string } | null>(null);
+  const taking = useRef<string | null>(null);
   const r = dose.reminder;
 
   const when =
@@ -53,7 +54,16 @@ export function NextDoseCard({
         ? t('today.inMinutes', { count: minutesUntil(time, dose.time) })
         : t('today.inHours', { count: Math.round(minutesUntil(time, dose.time) / 60) });
 
-  const take = () => takeDose({ medicineId: r.medicineId, dose: dose.dose, reminderId: r.id, due: dose.due });
+  // A second tap while the first is saved takes nothing.
+  const take = async () => {
+    if (taking.current === dose.due) return;
+    taking.current = dose.due;
+    try {
+      await takeDose({ medicineId: r.medicineId, dose: dose.dose, reminderId: r.id, due: dose.due });
+    } finally {
+      taking.current = null;
+    }
+  };
   const later = async () => {
     const at = await snoozeDose({ ...r, reminderId: r.id, time: dose.time, dose: dose.dose, due: dose.due }, SNOOZE_MINUTES);
     setSnoozedTo({ due: dose.due, at: hhmm(at) });

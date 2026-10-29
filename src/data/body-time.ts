@@ -32,9 +32,10 @@ export function useBodyTime(medicineId: string, registerId: string | null): { fa
       live = false;
     };
   }, [on, registerId]);
+  // Distinct: a dose taken out of two packs has a row for each, at one time.
   const { data } = useLiveQuery(
     db
-      .select({ at: intakes.at })
+      .selectDistinct({ at: intakes.at })
       .from(intakes)
       .where(and(eq(intakes.medicineId, medicineId), eq(intakes.status, 'taken')))
       .orderBy(desc(intakes.at))

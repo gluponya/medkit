@@ -13,6 +13,7 @@ import {
   courseEnd,
   daysOfSupply,
   PRESET_TIMES,
+  startOf,
   unitsNeeded,
   type ReminderPlan,
 } from '@/domain/reminders';
@@ -83,10 +84,10 @@ function ReminderForm({ medicine, saved }: { medicine: Medicine; saved: Reminder
     const doseTimes = [...times].sort().map((time) => ({ time, dose }));
     if (pick === 'other') {
       if (weekdays.length === 0) return null;
-      return { schedule: 'days_of_week', times: doseTimes, daysOfWeek: [...weekdays].sort(), start: today, days };
+      return { schedule: 'days_of_week', times: doseTimes, daysOfWeek: [...weekdays].sort(), start: startOf(saved, { schedule: 'days_of_week', days }, today), days };
     }
-    return { schedule: 'daily', times: doseTimes, daysOfWeek: null, start: today, days };
-  }, [pick, asNeeded, times, dose, weekdays, days, today]);
+    return { schedule: 'daily', times: doseTimes, daysOfWeek: null, start: startOf(saved, { schedule: 'daily', days }, today), days };
+  }, [pick, asNeeded, times, dose, weekdays, days, today, saved]);
 
   const form = medicine.form ?? 'other';
   const unit = t(UNIT[form]);

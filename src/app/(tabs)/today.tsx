@@ -1,5 +1,5 @@
 import { router, type Href } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -40,6 +40,8 @@ export default function Today() {
   const next = nextDose(doses);
   // The reminder whose «⋯» is open.
   const [menu, setMenu] = useState<TodayReminder | null>(null);
+  // The doses being marked or unmarked right now: a second tap waits for the first.
+  const busy = useRef(new Set<string>());
 
   if (!cabinet || plans === undefined) return null;
 
@@ -51,8 +53,17 @@ export default function Today() {
   });
   const takenCount = doses.filter((d) => d.state === 'taken').length;
   const unit = (r: TodayReminder) => t(UNIT[r.form ?? 'other']);
+  const once = (d: TodayDose<TodayReminder>, mark: () => Promise<void>) => {
+    const key = `${d.reminder.medicineId}|${d.due}`;
+    if (busy.current.has(key)) return;
+    busy.current.add(key);
+    void mark().finally(() => busy.current.delete(key));
+  };
   const take = (d: TodayDose<TodayReminder>) =>
-    takeDose({ medicineId: d.reminder.medicineId, dose: d.dose, reminderId: d.reminder.id, due: d.due });
+    once(d, () =>
+      takeDose({ medicineId: d.reminder.medicineId, dose: d.dose, reminderId: d.reminder.id, due: d.due }),
+    );
+  const untake = (d: TodayDose<TodayReminder>) => once(d, () => untakeDose({ medicineId: d.reminder.medicineId, due: d.due }));
   // The typed-routes generator lists /medicine/[id] as a static path on Windows, so it is cast.
   const openReminder = (medicineId: string) => router.push(`/medicine/${medicineId}/reminder` as Href);
 
@@ -84,10 +95,7 @@ export default function Today() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <View style={styles.fill}>
-            <Text style={type.screenTitle}>{t('today.title')}</Text>
-            <Text style={type.label}>{dateLine}</Text>
-          </View>
+          <Text style={[type.screenTitle, styles.fill]}>{t('today.title')}</Text>
           {doses.length > 0 && (
             <View style={styles.progress}>
               <Icon name="check" size={16} color={colors.success} strokeWidth={2.4} />
@@ -97,11 +105,12 @@ export default function Today() {
             </View>
           )}
         </View>
+        <Text style={type.label}>{dateLine}</Text>
 
         {doses.length === 0 ? (
           <View style={styles.empty}>
             <View style={styles.emptyMark}>
-              <Icon name="alarm" size={40} color={colors.primary} />
+              <Icon name="alarm" size={32} color={colors.primary} />
             </View>
             <Text style={[type.sectionTitle, styles.center]}>{t('today.empty')}</Text>
             <Button
@@ -133,7 +142,7 @@ export default function Today() {
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={t('today.markNotTaken')}
-                      onPress={() => void untakeDose({ reminderId: d.reminder.id, due: d.due })}
+                      onPress={() => untake(d)}
                       hitSlop={8}
                       style={({ pressed }) => [styles.circle, styles.circleTaken, pressed && styles.pressed]}
                     >
@@ -231,7 +240,7 @@ export default function Today() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xxl },
+  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
   fill: { flex: 1 },
   center: { textAlign: 'center' },
   white: { color: colors.white },
@@ -240,7 +249,8 @@ const styles = StyleSheet.create({
   success: { color: colors.success },
   danger: { color: colors.danger },
   pressed: { opacity: 0.7 },
-  header: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.md },
+  // As Home's header, so the title stays in one place from tab to tab.
+  header: { paddingTop: spacing.sm, minHeight: 44 + spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   progress: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -250,12 +260,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.successSoft,
   },
-  empty: { alignItems: 'center', gap: spacing.xl, paddingTop: 96, paddingBottom: spacing.xxl },
+  // As Home's and Shopping's empty screens.
+  empty: { marginTop: 96, alignItems: 'center', gap: spacing.lg, paddingBottom: spacing.xxl },
   emptyMark: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.primarySoft,
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
     alignItems: 'center',
     justifyContent: 'center',
   },

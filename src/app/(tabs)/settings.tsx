@@ -16,6 +16,7 @@ import { Icon } from '@/ui/Icon';
 import { Choice, Group, Row } from '@/ui/Rows';
 import { ConfirmSheet } from '@/ui/ConfirmSheet';
 import { Sheet } from '@/ui/Sheet';
+import { inTelegram } from '@/ui/telegram-shell';
 import { Tile } from '@/ui/Tile';
 import { cardShadow, colors, radius, spacing } from '@/ui/theme';
 import { type } from '@/ui/typography';
@@ -111,15 +112,18 @@ export default function SettingsScreen() {
           />
         </Group>
 
-        <Group title={t('settings.newPhone')}>
-          <Row
-            icon="device-mobile-up"
-            label={t('settings.keepAccess')}
-            value={account ? t(`signIn.${account}`) : undefined}
-            hint={account ? undefined : t('settings.keepAccessHint')}
-            onPress={() => router.push('/sign-in')}
-          />
-        </Group>
+        {/* Inside Telegram the account is Telegram's. */}
+        {inTelegram() ? null : (
+          <Group title={t('settings.newPhone')}>
+            <Row
+              icon="device-mobile-up"
+              label={t('settings.keepAccess')}
+              value={account ? t(`signIn.${account}`) : undefined}
+              hint={account ? undefined : t('settings.keepAccessHint')}
+              onPress={() => router.push('/sign-in')}
+            />
+          </Group>
+        )}
 
         <Group title={t('settings.other')}>
           <Row icon="info" label={t('settings.about')} value={version} />
@@ -245,7 +249,8 @@ function NameSheet({ onClose }: { onClose: () => void }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl },
-  title: { marginBottom: -spacing.sm },
+  // In a line as tall as Home's header buttons, so the title stays in one place from tab to tab.
+  title: { paddingVertical: (44 - type.screenTitle.lineHeight) / 2, marginBottom: -spacing.sm },
   fill: { flex: 1 },
   muted: { color: colors.inkMuted },
   choices: {

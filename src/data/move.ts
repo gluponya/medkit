@@ -21,14 +21,14 @@ export async function moveMedicine(input: {
   mergeInto: string | null;
 }): Promise<string> {
   const { medicineId, cabinetId, expiryOnly, mergeInto } = input;
-  await db.transaction(async (tx) => {
-    if (expiryOnly) await tx.delete(reminders).where(eq(reminders.medicineId, medicineId));
+  db.transaction((tx) => {
+    if (expiryOnly) tx.delete(reminders).where(eq(reminders.medicineId, medicineId)).run();
     if (mergeInto) {
-      await mergeMedicine(tx, medicineId, mergeInto);
+      mergeMedicine(tx, medicineId, mergeInto);
       return;
     }
-    await tx.update(medicines).set({ cabinetId }).where(eq(medicines.id, medicineId));
-    await tx.update(shoppingItems).set({ cabinetId }).where(eq(shoppingItems.medicineId, medicineId));
+    tx.update(medicines).set({ cabinetId }).where(eq(medicines.id, medicineId)).run();
+    tx.update(shoppingItems).set({ cabinetId }).where(eq(shoppingItems.medicineId, medicineId)).run();
   });
   await rescheduleDoses();
   return mergeInto ?? medicineId;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react';
-import { Keyboard, TextInput, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance } from 'react-native';
+import { Keyboard, Platform, TextInput, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance } from 'react-native';
 
 import { spacing } from './theme';
 
@@ -19,6 +19,8 @@ export function useFieldInView(ref: RefObject<ScrollViewInstance | null>) {
   const offset = useRef(0);
 
   const lift = () => {
+    // A browser scrolls the focused field into view itself, and has no currentlyFocusedInput.
+    if (Platform.OS === 'web') return;
     const field = TextInput.State.currentlyFocusedInput();
     const page = ref.current;
     if (!field || !page || !Keyboard.isVisible()) return;

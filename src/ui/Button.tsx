@@ -5,18 +5,19 @@ import { PressScale } from './motion';
 import { colors, radius, spacing } from './theme';
 import { type } from './typography';
 
-type Variant = 'primary' | 'secondary' | 'outline' | 'danger';
+type Variant = 'primary' | 'secondary' | 'outline' | 'danger' | 'night';
 
 const VARIANTS: Record<Variant, { bg: string; fg: string; border?: string }> = {
   primary: { bg: colors.primary, fg: colors.white },
   secondary: { bg: colors.primarySoft, fg: colors.primary },
   outline: { bg: colors.surface, fg: colors.ink, border: colors.line },
   danger: { bg: colors.danger, fg: colors.white },
+  night: { bg: colors.nightSoft, fg: colors.white },
 };
 
 /**
  * The design's buttons: filled primary, soft secondary, outlined plain, red
- * for what cannot be undone. A
+ * for what cannot be undone, light on dark for the camera screens. A
  * disabled button has no border and muted text, so it does not look tappable.
  */
 export function Button({

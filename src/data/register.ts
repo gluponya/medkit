@@ -1,7 +1,18 @@
 import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 
 import type { MedicineForm } from '@/domain/medicine';
-import { brandOf, distinctEntries, formFromRegister, INSTRUCTION_BASE, searchQuery, searchText } from '@/domain/register';
+import {
+  brandOf,
+  distinctEntries,
+  formFromRegister,
+  INSTRUCTION_BASE,
+  rankEntries,
+  searchQuery,
+  type SearchTokens,
+  searchText,
+  searchTokens,
+} from '@/domain/register';
 
 import { REGISTER_VERSION } from './register-version';
 
@@ -111,6 +122,7 @@ function register(): Promise<SQLite.SQLiteDatabase> {
  * screen groups the ones found by substance (splitResults).
  */
 export async function searchRegister(text: string, limit = 150): Promise<RegisterEntry[]> {
+  if (Platform.OS === 'web') return searchInMemory(text, limit);
   const match = searchQuery(text);
   if (!match) return [];
   const rows = await (await register()).getAllAsync<Row>(
@@ -122,6 +134,38 @@ export async function searchRegister(text: string, limit = 150): Promise<Registe
     [match, limit * 2],
   );
   return distinctEntries(rows.map(toEntry)).slice(0, limit);
+}
+
+let tokens: Promise<SearchTokens[]> | null = null;
+
+/** The web build's SQLite has no FTS5: the words of every entry, read once (rankEntries). */
+function registerTokens(): Promise<SearchTokens[]> {
+  tokens ??= register()
+    .then((db) =>
+      db.getAllAsync<{ rowid: number; name: string; inn: string | null; composition: string | null }>(
+        `select rowid, name, inn, composition from register_entries`,
+      ),
+    )
+    .then((rows) =>
+      rows.map((r) => ({ rowid: r.rowid, columns: [searchTokens(r.name), searchTokens(r.inn), searchTokens(r.composition)] })),
+    )
+    .catch((e: unknown) => {
+      tokens = null;
+      throw e;
+    });
+  return tokens;
+}
+
+async function searchInMemory(text: string, limit: number): Promise<RegisterEntry[]> {
+  const rowids = rankEntries(await registerTokens(), text).slice(0, limit * 2);
+  if (rowids.length === 0) return [];
+  const rows = await (await register()).getAllAsync<Row & { rowid: number }>(
+    `select rowid, * from register_entries where rowid in (select value from json_each(?))`,
+    [JSON.stringify(rowids)],
+  );
+  const byRowid = new Map(rows.map((r) => [r.rowid, r]));
+  const ranked = rowids.flatMap((id) => byRowid.get(id) ?? []);
+  return distinctEntries(ranked.map(toEntry)).slice(0, limit);
 }
 
 let brands: Promise<string[]> | null = null;

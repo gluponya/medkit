@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import type { BottomTabBarButtonProps } from 'expo-router/tabs';
-import { StyleSheet, type ColorValue } from 'react-native';
+import { Platform, StyleSheet, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCurrentCabinet } from '@/data/cabinets';
@@ -20,9 +20,21 @@ function tabIcon(name: IconName) {
  * A tab that settles a little under the finger instead of the system ripple,
  * which on Android spreads a grey circle over the bar.
  */
-function TabButton({ style, children, android_ripple: _ripple, pressOpacity: _opacity, hoverEffect: _hover, ...rest }: BottomTabBarButtonProps) {
+function TabButton({ style, children, android_ripple: _ripple, pressOpacity: _opacity, hoverEffect: _hover, onPress, ...rest }: BottomTabBarButtonProps) {
   return (
-    <PressScale {...rest} scaleTo={0.92} outerStyle={style} style={styles.fill}>
+    <PressScale
+      {...rest}
+      // On the web the tab is a link, and the browser would follow it: a whole
+      // new page on every tab, which in Telegram on an iPhone could not open the
+      // database the old one still held (a white screen, the owner, 2026-10-29).
+      onPress={(e) => {
+        if (Platform.OS === 'web') e.preventDefault();
+        onPress?.(e);
+      }}
+      scaleTo={0.92}
+      outerStyle={[style, Platform.OS === 'web' && styles.webTab]}
+      style={styles.fill}
+    >
       {children}
     </PressScale>
   );
@@ -63,4 +75,6 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  // The tab's own 5px all round; on the web the label is clipped and gets squeezed to a sliver.
+  webTab: { padding: 0 },
 });

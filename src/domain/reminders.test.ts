@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { accusativeUk } from '../i18n/grammar.ts';
 
-import { courseEnd, daysOfSupply, dosesOn, unitsNeeded, upcomingDoses, weekday, type ReminderPlan } from './reminders.ts';
+import { courseEnd, daysOfSupply, dosesOn, startOf, unitsNeeded, upcomingDoses, weekday, type ReminderPlan } from './reminders.ts';
 import { packOrder, packToTake, stockOf } from './stock.ts';
 
 const plan = (over: Partial<ReminderPlan> = {}): ReminderPlan => ({
@@ -77,4 +77,15 @@ test('a feminine name changes after a verb', () => {
   assert.equal(accusativeUk('Лірика'), 'Лірику');
   assert.equal(accusativeUk('ЛІРИКА'), 'ЛІРИКУ');
   assert.equal(accusativeUk('Нурофен'), 'Нурофен');
+});
+
+test('startOf keeps a running course and starts a new or changed one today', () => {
+  const saved = { schedule: 'daily' as const, start: '2026-10-20', days: 14 };
+  const daily = (days: number | null) => ({ schedule: 'daily' as const, days });
+  assert.equal(startOf(saved, daily(14), '2026-10-24'), '2026-10-20');
+  assert.equal(startOf(saved, daily(7), '2026-10-24'), '2026-10-24');
+  assert.equal(startOf(saved, daily(14), '2026-11-10'), '2026-11-10');
+  assert.equal(startOf(null, daily(14), '2026-10-24'), '2026-10-24');
+  assert.equal(startOf({ ...saved, days: null }, daily(null), '2027-03-01'), '2026-10-20');
+  assert.equal(startOf({ ...saved, schedule: 'as_needed' }, daily(14), '2026-10-24'), '2026-10-24');
 });

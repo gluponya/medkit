@@ -78,7 +78,7 @@ export default function Shopping() {
             onPress={() => setAdding(true)}
             style={({ pressed }) => [styles.round, pressed && styles.pressed]}
           >
-            <Icon name="plus" size={24} color={colors.primary} />
+            <Icon name="plus" size={22} color={colors.primary} />
           </Pressable>
         </View>
 
@@ -88,7 +88,7 @@ export default function Shopping() {
               <Icon name="shopping-cart" size={32} color={colors.primary} />
             </View>
             <Text style={type.sectionTitle}>{t('shopping.empty')}</Text>
-            <Button label={t('shopping.addByHand')} icon="plus" variant="secondary" onPress={() => setAdding(true)} />
+            <Button label={t('shopping.addByHand')} icon="plus" onPress={() => setAdding(true)} />
           </View>
         ) : null}
 
@@ -268,7 +268,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
     paddingBottom: spacing.xxl,
   },
   fill: { flex: 1 },
@@ -276,20 +275,21 @@ const styles = StyleSheet.create({
   ink: { color: colors.ink },
   muted: { color: colors.inkMuted },
   pressed: { opacity: 0.7 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  // As Home's header and «+», so the title stays in one place from tab to tab.
+  header: { paddingTop: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   round: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  empty: { marginTop: 120, alignItems: 'center', gap: spacing.lg },
+  empty: { marginTop: 96, alignItems: 'center', gap: spacing.lg },
   emptyMark: {
-    width: 76,
-    height: 76,
-    borderRadius: 22,
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.line,
