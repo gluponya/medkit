@@ -33,7 +33,9 @@ pills when she has a headache. **Goal:** see her home cabinet in the app.
 3. → `[Home]` empty, for the first visit: a «Перші кроки» card. Step 1 «Додати
    ліки, що є вдома»: «Сканувати упаковку», «Знайти за назвою», «Пізніше».
    Step 2 (only `with_intake`) «Налаштувати нагадування»: «Додати
-   нагадування», «Пізніше». Nothing here is required.
+   нагадування», «Пізніше». The last step «Позначати ліки без доведеної дії?»:
+   «Позначати» and «Не треба», both the same weight; either answer closes it
+   (docs/model.md, "No proven effect"). Nothing here is required.
 4. A done step gets a tick, a skipped one shows «Відкладено» and opens again on a
    tap. When every step is done or skipped the card is gone for good; an empty
    cabinet then shows the plain empty state with the same two ways to add.

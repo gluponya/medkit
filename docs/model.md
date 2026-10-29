@@ -246,7 +246,7 @@ the weekly summary, then doses in time order.
   15, can be off), unless the dose is marked taken first. Never past midnight.
 - **Expiry:** at 09:00, `expiry_notice_days` before a pack's date (default 30).
   A notice whose day has passed is not sent late: the pack is on Home anyway.
-- **Weekly summary** (switch, on by default): Monday 09:00, how many packs are
+- **Monday expiry summary** («Терміни щопонеділка», switch, on by default): Monday 09:00, how many packs are
   expired and expiring by then. Not sent when there are none.
 - **Shopping:** see "Shopping list".
 
@@ -426,6 +426,48 @@ so only in `with_intake` cabinets and only for what was actually marked.
   sleep and nerves, vitamins). Others get rows later.
 - No separate question or button: it is a quiet note at the bottom of the
   medicine screen (see `docs/screens.md`, Medicine).
+
+## No proven effect
+
+Asked by the owner on 2026-10-29: a way to find the medicines with no proven
+effect (Арбідол, Анаферон, homeopathy). Some people trust them, and the app
+must not shame them; others want to know.
+
+### EvidenceNote
+
+Per active substance (INN), like SubstanceFacts, shipped with the app. Homeopathy
+has no INN and the Register has no field for it, so it is told by the Register's
+own words: no ATC code, and dilutions in the composition («D6», «C30», «200К»)
+or «гомеопатичн» in it or the form. In the Register of 2026-10-24 that is 184
+products, Анаферон, Ергоферон and Тенотен among them. Only medicines added from
+the Register are marked.
+
+| Field | Notes |
+|---|---|
+| inn | Key, or `homeopathy` for every homeopathic product. |
+| names | Trade names, only for a product the Register files under «Mono» with no INN (Церебролізин, Актовегін). |
+| source | Link to the review that found no proven effect (Cochrane, WHO, a national formulary). One per row; no row without one. |
+| source_name | What the row shows: «Cochrane», «ВООЗ». |
+| reviewed | A person has checked the row against the source. Unreviewed rows are not shipped. |
+
+The list is ours, short and kept by hand. A substance gets a row only when a
+review says the effect is not shown, never because it is merely unknown.
+
+### Rules
+
+- **Off by default.** Nothing about it shows until the person turns it on.
+- **A personal setting, not a cabinet one.** It lives on the phone with the other
+  preferences and is never synced: in a shared cabinet each member decides for
+  themselves, so marking the parents' cabinet shows nothing on the parents' phones.
+- **Asked once** as the last of the first steps («Позначати ліки без доведеної
+  дії?», «Позначати» / «Не треба», the two buttons of equal weight), never when a
+  marked medicine is added, so the question is about the person's preference and
+  not about their medicine. The switch stays in Settings.
+- **When on:** a search tile «Без доведеної дії» after the categories (only when
+  some medicine has it), and a grey chip «Дію не доведено» by the category chips on
+  the medicine screen that opens the source. No colour of its own, no warning icon, no count on Home, no
+  push.
+- The words are facts, not judgement: never «фуфломіцин», «марні», «не працює».
 
 ## Barcodes
 

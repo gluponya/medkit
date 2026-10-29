@@ -1,9 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Fragment, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCabinets } from '@/data/cabinets';
+import { useEvidenceNote } from '@/data/evidence';
 import {
   changeStock,
   deleteMedicine,
@@ -77,6 +78,7 @@ export default function MedicineScreen() {
   const [shelfLife, setShelfLife] = useState<number | null>(null);
 
   const registerId = medicine?.registerId ?? null;
+  const evidence = useEvidenceNote(registerId);
   useEffect(() => {
     if (!registerId) return;
     let live = true;
@@ -244,7 +246,7 @@ export default function MedicineScreen() {
           </View>
         </View>
 
-        {medicine.rx || categories.length > 0 ? (
+        {medicine.rx || categories.length > 0 || evidence ? (
           <View style={styles.chips}>
             {medicine.rx ? (
               <Pressable
@@ -262,6 +264,18 @@ export default function MedicineScreen() {
                 <Text style={[type.secondaryStrong, styles.primary]}>{categoryName(c)}</Text>
               </Pressable>
             ))}
+            {evidence ? (
+              <Pressable
+                accessibilityRole="link"
+                accessibilityHint={evidence.sourceName}
+                onPress={() => void Linking.openURL(evidence.source)}
+                style={[styles.chip, styles.chipEvidence]}
+              >
+                <Icon name="microscope" size={18} />
+                <Text style={[type.secondaryStrong, styles.muted]}>{t('medicine.noEvidence')}</Text>
+                <Icon name="external-link" size={16} />
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
@@ -553,6 +567,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl },
   fill: { flex: 1 },
   primary: { color: colors.primary },
+  muted: { color: colors.inkMuted },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   mark: {
     width: 64,
@@ -575,6 +590,7 @@ const styles = StyleSheet.create({
   },
   chipRx: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   chipTag: { backgroundColor: colors.primarySoft },
+  chipEvidence: { backgroundColor: colors.surfaceSoft, borderWidth: 1, borderColor: colors.line },
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,

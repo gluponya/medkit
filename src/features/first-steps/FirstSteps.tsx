@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { usePrefs } from '@/data/prefs';
 import { useSession } from '@/data/session';
 import type { Step, StepId } from '@/domain/first-steps';
 import { useT, type MessageKey } from '@/i18n';
@@ -9,8 +10,16 @@ import { Icon } from '@/ui/Icon';
 import { cardShadow, colors, radius, spacing } from '@/ui/theme';
 import { type } from '@/ui/typography';
 
-const TITLE: Record<StepId, MessageKey> = { medicines: 'firstSteps.medicines', reminders: 'firstSteps.reminders' };
-const HINT: Record<StepId, MessageKey> = { medicines: 'firstSteps.medicinesHint', reminders: 'firstSteps.remindersHint' };
+const TITLE: Record<StepId, MessageKey> = {
+  medicines: 'firstSteps.medicines',
+  reminders: 'firstSteps.reminders',
+  evidence: 'firstSteps.evidence',
+};
+const HINT: Record<StepId, MessageKey> = {
+  medicines: 'firstSteps.medicinesHint',
+  reminders: 'firstSteps.remindersHint',
+  evidence: 'firstSteps.evidenceHint',
+};
 
 /**
  * «Перші кроки» (docs/screens.md, "First steps"): the current step open with its
@@ -33,6 +42,8 @@ export function FirstSteps({
   const t = useT();
   const putOff = useSession((s) => s.putOffStep);
   const reopen = useSession((s) => s.reopenStep);
+  const markNoEvidence = usePrefs((s) => s.markNoEvidence);
+  const setPrefs = usePrefs((s) => s.set);
   const settled = steps.filter((s) => s.state !== 'open').length;
 
   const row = (step: Step, number: number) => {
@@ -48,6 +59,17 @@ export function FirstSteps({
               <Text style={type.secondary}>{t(HINT[step.id])}</Text>
             </View>
           </View>
+          {step.id === 'evidence' ? (
+            // An answer, not a task: two buttons of equal weight and no «Пізніше».
+            <View style={[styles.buttons, styles.pair]}>
+              <View style={styles.fill}>
+                <Button label={t('firstSteps.evidenceYes')} variant="secondary" onPress={() => setPrefs({ markNoEvidence: true })} height={48} />
+              </View>
+              <View style={styles.fill}>
+                <Button label={t('firstSteps.evidenceNo')} variant="secondary" onPress={() => setPrefs({ markNoEvidence: false })} height={48} />
+              </View>
+            </View>
+          ) : (
           <View style={styles.buttons}>
             {step.id === 'medicines' ? (
               <>
@@ -59,6 +81,7 @@ export function FirstSteps({
             )}
             <Button label={t('common.later')} variant="outline" onPress={() => putOff(step.id)} height={48} />
           </View>
+          )}
         </View>
       );
     }
@@ -67,13 +90,21 @@ export function FirstSteps({
       step.state === 'done'
         ? step.id === 'medicines'
           ? t('firstSteps.medicinesDone', { count: medicineCount })
-          : t('firstSteps.remindersDone')
+          : step.id === 'reminders'
+            ? t('firstSteps.remindersDone')
+            : t(markNoEvidence ? 'firstSteps.evidenceOn' : 'firstSteps.evidenceOff')
         : step.state === 'later'
           ? t('firstSteps.putOff')
           : t(HINT[step.id]);
     const muted = step.state !== 'open';
     const onPress =
-      step.state === 'later' ? () => reopen(step.id) : step.state === 'open' ? (step.id === 'medicines' ? onScan : onAddReminder) : undefined;
+      step.state === 'later'
+        ? () => reopen(step.id)
+        : step.state === 'open' && step.id !== 'evidence'
+          ? step.id === 'medicines'
+            ? onScan
+            : onAddReminder
+          : undefined;
 
     return (
       <Pressable accessibilityRole={onPress ? 'button' : undefined} disabled={!onPress} onPress={onPress} style={styles.closed}>
@@ -142,6 +173,7 @@ const styles = StyleSheet.create({
   open: { padding: spacing.md, paddingVertical: spacing.lg },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
   buttons: { marginTop: spacing.md + 2, paddingLeft: BADGE + spacing.md, gap: spacing.sm },
+  pair: { flexDirection: 'row' },
   closed: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md },
   badge: { width: BADGE, height: BADGE, borderRadius: BADGE / 2, alignItems: 'center', justifyContent: 'center' },
   badgeCurrent: { backgroundColor: colors.primary },

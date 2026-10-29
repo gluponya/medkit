@@ -155,3 +155,13 @@ export async function getRegisterEntry(id: string): Promise<RegisterEntry | null
   const row = await (await register()).getFirstAsync<Row>(`select * from register_entries where id = ?`, [id]);
   return row ? toEntry(row) : null;
 }
+
+/** Several entries at once, in no particular order; ids not in the Register are left out. */
+export async function getRegisterEntries(ids: readonly string[]): Promise<RegisterEntry[]> {
+  if (ids.length === 0) return [];
+  const rows = await (await register()).getAllAsync<Row>(
+    `select * from register_entries where id in (select value from json_each(?))`,
+    [JSON.stringify(ids)],
+  );
+  return rows.map(toEntry);
+}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { categoryCounts, findMedicines, foundStatus, matchesQuery, type Findable } from './find.ts';
+import { categoryCounts, findMedicines, foundStatus, matchesQuery, NO_EVIDENCE, type Findable } from './find.ts';
 
 const med = (id: string, cabinetId: string, name: string, inn: string | null, extra: Partial<Findable> = {}): Findable => ({
   id,
@@ -12,6 +12,7 @@ const med = (id: string, cabinetId: string, name: string, inn: string | null, ex
   strength: null,
   categories: [],
   packs: ['2027-03-31'],
+  noEvidence: false,
   ...extra,
 });
 
@@ -68,4 +69,12 @@ test('categories are counted over every cabinet', () => {
     ['pain', 3],
     ['cold', 1],
   ]);
+});
+
+test('the no-evidence tile finds the marked medicines and counts them', () => {
+  const marked = [...items, med('o', 'car', 'Оцилококцинум', null, { noEvidence: true })];
+  const groups = findMedicines(marked, { query: '', category: NO_EVIDENCE }, ['home', 'car', 'dacha'], 'home', '2026-10-24', () => 30);
+  assert.deepEqual(groups.map((g) => [g.cabinetId, g.medicines.map((m) => m.id)]), [['car', ['o']]]);
+  assert.equal(categoryCounts(marked).get(NO_EVIDENCE), 1);
+  assert.equal(categoryCounts(items).get(NO_EVIDENCE), undefined);
 });

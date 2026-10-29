@@ -17,6 +17,11 @@ interface PrefsState {
   /** One repeat of a dose not marked taken, this many minutes later; 0 is none. */
   missedRepeatMinutes: number;
   weeklyDigest: boolean;
+  /**
+   * Mark medicines with no proven effect (docs/model.md, "No proven effect").
+   * Null until answered in the first steps; never synced.
+   */
+  markNoEvidence: boolean | null;
   set: (patch: Partial<Omit<PrefsState, 'set'>>) => void;
 }
 
@@ -27,6 +32,7 @@ export const usePrefs = create<PrefsState>()(
       expiryNoticeDays: 30,
       missedRepeatMinutes: 15,
       weeklyDigest: true,
+      markNoEvidence: null,
       set: (patch) => set(patch),
     }),
     { name: 'prefs', storage: createJSONStorage(() => AsyncStorage) },

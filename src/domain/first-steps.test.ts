@@ -7,6 +7,7 @@ const fresh: FirstStepsInput = {
   withIntake: true,
   medicineCount: 0,
   reminderCount: 0,
+  evidenceAnswered: false,
   later: [],
 };
 
@@ -17,6 +18,7 @@ test('a fresh home cabinet starts on the first step', () => {
     [
       ['medicines', 'open', true],
       ['reminders', 'open', false],
+      ['evidence', 'open', false],
     ],
   );
   assert.equal(firstStepsFinished(steps), false);
@@ -25,7 +27,7 @@ test('a fresh home cabinet starts on the first step', () => {
 test('a cabinet without intake has no reminders step', () => {
   assert.deepEqual(
     firstSteps({ ...fresh, withIntake: false }).map((s) => s.id),
-    ['medicines'],
+    ['medicines', 'evidence'],
   );
 });
 
@@ -43,6 +45,19 @@ test('putting a step off moves on to the next', () => {
 });
 
 test('the card is finished once every step is done or put off', () => {
-  assert.equal(firstStepsFinished(firstSteps({ ...fresh, medicineCount: 1, later: ['reminders'] })), true);
-  assert.equal(firstStepsFinished(firstSteps({ ...fresh, withIntake: false, later: ['medicines'] })), true);
+  assert.equal(firstStepsFinished(firstSteps({ ...fresh, medicineCount: 1, later: ['reminders'] })), false);
+  assert.equal(firstStepsFinished(firstSteps({ ...fresh, medicineCount: 1, later: ['reminders'], evidenceAnswered: true })), true);
+  assert.equal(firstStepsFinished(firstSteps({ ...fresh, withIntake: false, later: ['medicines'], evidenceAnswered: true })), true);
+});
+
+test('the evidence question comes last, after the others are settled', () => {
+  const steps = firstSteps({ ...fresh, medicineCount: 2, reminderCount: 1 });
+  assert.deepEqual(
+    steps.map((s) => [s.id, s.state, s.current]),
+    [
+      ['medicines', 'done', false],
+      ['reminders', 'done', false],
+      ['evidence', 'open', true],
+    ],
+  );
 });

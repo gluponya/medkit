@@ -8,7 +8,7 @@ import { useCustomCategories } from '@/data/categories';
 import { useFindables } from '@/data/search';
 import { CATEGORIES } from '@/domain/categories';
 import { expiryMonth, localDay } from '@/domain/expiry';
-import { categoryCounts, findMedicines, type Found } from '@/domain/find';
+import { categoryCounts, findMedicines, NO_EVIDENCE, type Found } from '@/domain/find';
 import { matchParts } from '@/domain/register';
 import { CATEGORY_ICON, CATEGORY_NAME, FORM_NAME } from '@/features/add/labels';
 import { ownIcon } from '@/features/categories/categories';
@@ -43,6 +43,7 @@ export default function FindScreen() {
   const tiles: { key: string; label: string; icon: IconName }[] = [
     ...CATEGORIES.map((c) => ({ key: c as string, label: t(CATEGORY_NAME[c]), icon: CATEGORY_ICON[c] })),
     ...own.map((c) => ({ key: c.id, label: c.name, icon: ownIcon(c.icon) })),
+    { key: NO_EVIDENCE, label: t('find.noEvidence'), icon: 'microscope' as IconName },
   ].filter((tile) => (counts.get(tile.key) ?? 0) > 0);
   const picked = tiles.find((tile) => tile.key === category);
 

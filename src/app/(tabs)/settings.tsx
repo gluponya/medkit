@@ -70,6 +70,14 @@ export default function SettingsScreen() {
           />
         </Group>
 
+        <Group title={t('settings.medicines')}>
+          <Row
+            icon="microscope"
+            label={t('settings.markNoEvidence')}
+            toggle={{ on: prefs.markNoEvidence === true, onChange: (on) => prefs.set({ markNoEvidence: on }) }}
+          />
+        </Group>
+
         <Group title={t('settings.notifications')}>
           <Row
             icon="calendar-time"

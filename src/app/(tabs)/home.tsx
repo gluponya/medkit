@@ -5,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useCurrentCabinet, useMedicineCount } from '@/data/cabinets';
 import { usePackRows } from '@/data/medicines';
+import { usePrefs } from '@/data/prefs';
 import { useReminderCount } from '@/data/reminders';
 import { useSession } from '@/data/session';
 import { useCabinetReminders, useDayIntakes } from '@/data/today';
@@ -37,6 +38,7 @@ export default function Home() {
   const warningDays = cabinet?.expiryWarningDays ?? 30;
   const list = useMemo(() => overview(rows, localDay(new Date()), warningDays), [rows, warningDays]);
   const later = useSession((s) => s.stepsLater);
+  const markNoEvidence = usePrefs((s) => s.markNoEvidence);
   const stepsFinished = useSession((s) => s.stepsFinished);
   const finishSteps = useSession((s) => s.finishSteps);
   const [switching, setSwitching] = useState(false);
@@ -59,7 +61,13 @@ export default function Home() {
   const ahead = doses.filter((d) => d !== next && (d.state === 'due' || d.state === 'later')).length;
 
   const steps = cabinet
-    ? firstSteps({ withIntake: cabinet.mode === 'with_intake', medicineCount, reminderCount, later })
+    ? firstSteps({
+        withIntake: cabinet.mode === 'with_intake',
+        medicineCount,
+        reminderCount,
+        evidenceAnswered: markNoEvidence !== null,
+        later,
+      })
     : [];
   const finishedNow = cabinet !== undefined && cabinet !== null && firstStepsFinished(steps);
   useEffect(() => {

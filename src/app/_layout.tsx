@@ -39,8 +39,6 @@ export default function RootLayout() {
   const fontsReady = fontsLoaded || fontsError !== null;
 
   const ready = (success || error !== undefined) && languageReady && sessionReady && fontsReady;
-  // TEMP: black-screen diagnosis.
-  console.log('[boot]', JSON.stringify({ success, error: error?.message ?? null, languageReady, sessionReady, fontsLoaded, fontsError: fontsError?.message ?? null }));
   useEffect(() => {
     if (ready) void SplashScreen.hideAsync();
   }, [ready]);

@@ -20,6 +20,8 @@ export interface Findable {
   categories: readonly string[];
   /** The expiry of each active pack; null is «Не знаю». */
   packs: readonly (string | null)[];
+  /** Has no proven effect, and the person asked to mark such medicines (docs/model.md). */
+  noEvidence: boolean;
 }
 
 export interface Found extends Findable {
@@ -28,6 +30,9 @@ export interface Found extends Findable {
   /** The soonest date still good, or the last one when all expired. */
   expires: string | null;
 }
+
+/** The «Без доведеної дії» tile: picked like a category, though no medicine is tagged with it. */
+export const NO_EVIDENCE = '~no-evidence';
 
 export interface CabinetResults {
   cabinetId: string;
@@ -67,7 +72,9 @@ export function findMedicines(
   const query = ask.query.trim();
   if (!query && !ask.category) return [];
   const hits = items.filter(
-    (m) => (!ask.category || m.categories.includes(ask.category)) && (!query || matchesQuery(m, query)),
+    (m) =>
+      (!ask.category || (ask.category === NO_EVIDENCE ? m.noEvidence : m.categories.includes(ask.category))) &&
+      (!query || matchesQuery(m, query)),
   );
   const order = [...cabinetOrder].sort((a, b) => Number(b === currentId) - Number(a === currentId));
   const groups: CabinetResults[] = [];
@@ -81,9 +88,13 @@ export function findMedicines(
   return groups;
 }
 
-/** How many medicines carry each tag, over every cabinet. */
+/** How many medicines carry each tag, over every cabinet; NO_EVIDENCE counts the marked ones. */
 export function categoryCounts(items: readonly Findable[]): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const m of items) for (const c of m.categories) counts.set(c, (counts.get(c) ?? 0) + 1);
+  const add = (key: string) => counts.set(key, (counts.get(key) ?? 0) + 1);
+  for (const m of items) {
+    for (const c of m.categories) add(c);
+    if (m.noEvidence) add(NO_EVIDENCE);
+  }
   return counts;
 }

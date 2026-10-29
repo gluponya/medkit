@@ -1,11 +1,11 @@
 /**
  * The «Перші кроки» card on an empty Home (docs/journeys.md J1, docs/screens.md
- * "First steps"). Two steps: add medicines, and (only with intake) set up a
- * reminder. Nothing is required: a step is done, put off, or still open. A tap
+ * "First steps"). Add medicines, (only with intake) set up a reminder, and
+ * last, whether to mark medicines with no proven effect. Nothing is required: a step is done, put off, or still open. A tap
  * on a put-off step takes it off the put-off list, which opens it again.
  */
 
-export type StepId = 'medicines' | 'reminders';
+export type StepId = 'medicines' | 'reminders' | 'evidence';
 export type StepState = 'open' | 'done' | 'later';
 
 export interface FirstStepsInput {
@@ -13,6 +13,8 @@ export interface FirstStepsInput {
   withIntake: boolean;
   medicineCount: number;
   reminderCount: number;
+  /** «Позначати» or «Не треба» was picked (or the switch in Settings set). */
+  evidenceAnswered: boolean;
   /** Steps the person put off with «Пізніше». */
   later: readonly StepId[];
 }
@@ -25,9 +27,10 @@ export interface Step {
 }
 
 export function firstSteps(input: FirstStepsInput): Step[] {
-  const ids: StepId[] = input.withIntake ? ['medicines', 'reminders'] : ['medicines'];
+  const ids: StepId[] = input.withIntake ? ['medicines', 'reminders', 'evidence'] : ['medicines', 'evidence'];
   const states = ids.map((id): StepState => {
-    const done = id === 'medicines' ? input.medicineCount > 0 : input.reminderCount > 0;
+    const done =
+      id === 'medicines' ? input.medicineCount > 0 : id === 'reminders' ? input.reminderCount > 0 : input.evidenceAnswered;
     if (done) return 'done';
     return input.later.includes(id) ? 'later' : 'open';
   });
