@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCurrentCabinet } from '@/data/cabinets';
@@ -17,8 +17,10 @@ import {
   splitResults,
 } from '@/domain/register';
 import { useDraft, type AfterAdd } from '@/features/add/draft';
+import { scannedExpiry } from '@/features/add/scan';
 import { useChange } from '@/features/change/draft';
 import { FORM_NAME } from '@/features/add/labels';
+import { shownStrength } from '@/features/medicine/strength';
 import { useT } from '@/i18n';
 import { BackBar } from '@/ui/BackBar';
 import { Button } from '@/ui/Button';
@@ -55,7 +57,7 @@ export default function SearchScreen() {
     close: { brand: string; inn: string | null }[];
   } | null>(null);
   const [failed, setFailed] = useState(false);
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ScrollViewInstance>(null);
 
   useEffect(() => {
     const text = query.trim();
@@ -93,7 +95,7 @@ export default function SearchScreen() {
     }
     const draft = useDraft.getState();
     draft.reset();
-    draft.set({ register: entry, name: displayName(entry.name), form: entry.form, then: after });
+    draft.set({ register: entry, name: displayName(entry.name), form: entry.form, then: after, ...scannedExpiry() });
     router.push('/add/confirm');
   };
 
@@ -118,7 +120,7 @@ export default function SearchScreen() {
     [
       singleInn(e.inn) ?? t('search.several'),
       e.form === 'other' ? (formWord(e.formText) ?? t(FORM_NAME.other).toLocaleLowerCase()) : t(FORM_NAME[e.form]).toLocaleLowerCase(),
-      e.strength,
+      shownStrength(e.strength),
     ]
       .filter(Boolean)
       .join(', ');
@@ -281,7 +283,17 @@ export default function SearchScreen() {
 
             <Text style={[type.label, styles.notListed]}>{t('search.notListed')}</Text>
             <View style={styles.card}>
-              <WayIn icon="camera" label={t('search.photo')} onPress={() => router.push('/soon')} />
+              <WayIn icon="camera" label={t('search.photo')} onPress={() => router.push({ pathname: '/add/photo', params: { then } })} />
+              <View style={styles.divider} />
+              <WayIn icon="pencil" label={t('search.byHand')} onPress={byHand} />
+            </View>
+          </>
+        ) : !query.trim() && !change ? (
+          // Before anything is typed: the box in hand can be shot straight away.
+          <>
+            <Text style={[type.label, styles.notListed]}>{t('search.otherWays')}</Text>
+            <View style={styles.card}>
+              <WayIn icon="camera" label={t('search.photo')} onPress={() => router.push({ pathname: '/add/photo', params: { then } })} />
               <View style={styles.divider} />
               <WayIn icon="pencil" label={t('search.byHand')} onPress={byHand} />
             </View>

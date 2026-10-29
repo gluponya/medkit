@@ -1,6 +1,16 @@
 import { router, type Href } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCabinets, useCurrentCabinet } from '@/data/cabinets';
@@ -217,36 +227,39 @@ function AddSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.scrim} onPress={onClose} />
-      <SafeAreaView edges={['bottom']} style={styles.sheet}>
-        <Text style={type.sectionTitle}>{t('shopping.whatToBuy')}</Text>
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder={t('shopping.namePlaceholder')}
-          placeholderTextColor={colors.inkMuted}
-          autoFocus
-          returnKeyType="done"
-          onSubmitEditing={() => void add()}
-          style={styles.input}
-        />
-        {cabinets.length > 1 ? (
-          <View style={styles.chips}>
-            {cabinets.map((c) => (
-              <Pressable
-                key={c.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected: c.id === cabinetId }}
-                onPress={() => setPicked(c.id)}
-                style={[styles.chip, c.id === cabinetId && styles.chipPicked]}
-              >
-                <Text style={[type.bodyMedium, c.id === cabinetId && styles.white]}>{c.name}</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-        <Button label={t('shopping.addButton')} onPress={() => void add()} disabled={!ready} />
-      </SafeAreaView>
+      {/* The sheet rides on the keyboard, or the field and the button end up under it. */}
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable style={styles.scrim} onPress={onClose} />
+        <SafeAreaView edges={['bottom']} style={styles.sheet}>
+          <Text style={type.sectionTitle}>{t('shopping.whatToBuy')}</Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder={t('shopping.namePlaceholder')}
+            placeholderTextColor={colors.inkMuted}
+            autoFocus
+            returnKeyType="done"
+            onSubmitEditing={() => void add()}
+            style={styles.input}
+          />
+          {cabinets.length > 1 ? (
+            <View style={styles.chips}>
+              {cabinets.map((c) => (
+                <Pressable
+                  key={c.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: c.id === cabinetId }}
+                  onPress={() => setPicked(c.id)}
+                  style={[styles.chip, c.id === cabinetId && styles.chipPicked]}
+                >
+                  <Text style={[type.bodyMedium, c.id === cabinetId && styles.white]}>{c.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          <Button label={t('shopping.addButton')} onPress={() => void add()} disabled={!ready} />
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

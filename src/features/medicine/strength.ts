@@ -59,6 +59,12 @@ export function parseStrength(text: string): { amount: string; unit: string | nu
 export const formatStrength = (amount: string, unit: string): string =>
   unit === '%' ? `${amount}%` : `${amount} ${unit}`;
 
+/**
+ * The strength as it is shown: no line ever breaks inside it, so «100» never
+ * ends a line with «мг» on the next one (the owner, 2026-10-29).
+ */
+export const shownStrength = (strength: string | null): string | null => strength?.replace(/\s+/g, ' ') ?? null;
+
 /** What can be typed as the number: digits and one decimal comma. */
 export function cleanAmount(text: string): string {
   const [whole, ...rest] = text.replace('.', ',').replace(/[^\d,]/g, '').split(',');

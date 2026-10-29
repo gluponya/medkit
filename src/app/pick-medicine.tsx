@@ -8,6 +8,7 @@ import { useCabinetMedicines, type Medicine } from '@/data/medicines';
 import { useRemindedMedicines } from '@/data/reminders';
 import { searchText } from '@/domain/register';
 import { FORM_NAME } from '@/features/add/labels';
+import { shownStrength } from '@/features/medicine/strength';
 import { useT } from '@/i18n';
 import { BackBar } from '@/ui/BackBar';
 import { Icon } from '@/ui/Icon';
@@ -38,7 +39,7 @@ export default function PickMedicineScreen() {
     : medicines;
 
   const details = (m: Medicine) =>
-    [m.inn, t(FORM_NAME[m.form ?? 'other']).toLocaleLowerCase(), m.strength].filter(Boolean).join(', ');
+    [m.inn, t(FORM_NAME[m.form ?? 'other']).toLocaleLowerCase(), shownStrength(m.strength)].filter(Boolean).join(', ');
 
   const pick = (m: Medicine) => {
     router.replace({ pathname: '/medicine/[id]', params: { id: m.id } });

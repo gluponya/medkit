@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native';
 
 import { NoConnectionError, peekInvite } from '@/data/sharing';
 import { useSession } from '@/data/session';
@@ -17,7 +17,7 @@ import { type } from '@/ui/typography';
  */
 export default function JoinCodeScreen() {
   const t = useT();
-  const input = useRef<TextInput>(null);
+  const input = useRef<TextInputInstance>(null);
   const [code, setCode] = useState('');
   const [state, setState] = useState<'typing' | 'looking' | 'unknown' | 'offline'>('typing');
 

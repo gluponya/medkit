@@ -58,7 +58,7 @@ export default function CabinetScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <BackBar label={t('cabinets.title')} />
+      <BackBar label={t('common.back')} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.head}>
           <View style={styles.mark}>

@@ -428,10 +428,17 @@ So:
 
 1. The scanner reads EAN-13 and GS1 DataMatrix. From a DataMatrix it also takes
    the expiry date.
-2. The barcode is looked up in a shared Supabase table `barcode_map(gtin →
-   register entry, pack size, confirmations)`.
-3. On a miss, the user picks the medicine from the Register search once; the
-   pair is saved for everyone and trusted after several matching confirmations.
+2. The barcode is looked up in a shared Supabase table `barcode_map`: one row
+   per person and code (gtin, user, register entry, pack size), their latest
+   pick, read and written only through `lookup_barcode` and
+   `confirm_barcode`, so nobody sees who picked what. A lookup gives the entry
+   most people picked, the asker's own pick first.
+3. On a miss, the user picks the medicine once (box photo or the Register
+   search) and adds it; the pair is saved for everyone. Another person's pair
+   is trusted after two people picked it; one's own pick at once. The phone
+   also keeps its own picks, so a code once added works offline.
+   The pack size is saved only when the quantity added is one of the
+   Register's pack sizes, a full pack.
 4. "Code not found" is a normal path, not an error: it offers a photo of the
    box first and the search next to it.
 

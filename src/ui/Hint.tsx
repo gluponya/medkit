@@ -12,19 +12,23 @@ import { type } from './typography';
  * A first-time hint (docs/screens.md): a dark bubble with an arrow pointing up
  * at what it explains, and a quiet ×. It lies over the whole area it is put
  * in, so a tap anywhere closes it. `top` is where the arrow's tip goes and
- * `arrowLeft` how far from the left edge it points.
+ * `arrowLeft` how far from the left edge it points. With `bottom` instead
+ * the bubble stands above what it explains, the arrow pointing down; `light`
+ * makes it white, for a dark screen such as the scanner.
  */
 export function Hint({
   text,
   top,
+  bottom,
   arrowLeft,
+  light = false,
   onClose,
 }: {
   text: string;
-  top: number;
   arrowLeft: number;
   onClose: () => void;
-}) {
+  light?: boolean;
+} & ({ top: number; bottom?: never } | { bottom: number; top?: never })) {
   const t = useT();
   const reduced = useReducedMotion();
   const [shown] = useState(() => new Animated.Value(0));
@@ -39,10 +43,19 @@ export function Hint({
       onPress={onClose}
       style={StyleSheet.absoluteFill}
     >
-      <Animated.View style={[styles.wrap, { top, opacity: shown }]}>
-        <View style={[styles.arrow, { left: arrowLeft - ARROW / 2 }]} />
-        <View style={styles.bubble}>
-          <Text style={[type.cardTitle, styles.text]}>{text}</Text>
+      <Animated.View
+        style={[styles.wrap, bottom === undefined ? { top } : [styles.wrapUp, { bottom }], { opacity: shown }]}
+      >
+        <View
+          style={[
+            styles.arrow,
+            bottom === undefined ? styles.arrowUp : styles.arrowDown,
+            light && styles.light,
+            { left: arrowLeft - ARROW / 2 },
+          ]}
+        />
+        <View style={[styles.bubble, light && styles.light]}>
+          <Text style={[type.cardTitle, styles.text, light && styles.lightText]}>{text}</Text>
           <Icon name="x" size={20} color={colors.inkMuted} />
         </View>
       </Animated.View>
@@ -55,9 +68,14 @@ const ARROW = 14;
 
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: spacing.lg, right: 72, paddingTop: ARROW / 2 },
+  // Above what it explains: clear of the screen's sides on both.
+  wrapUp: { right: spacing.lg, paddingTop: 0, paddingBottom: ARROW / 2 },
+  arrowUp: { top: 2 },
+  arrowDown: { bottom: 2 },
+  light: { backgroundColor: colors.white },
+  lightText: { color: colors.ink },
   arrow: {
     position: 'absolute',
-    top: 2,
     width: ARROW,
     height: ARROW,
     borderRadius: 2,

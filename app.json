@@ -34,7 +34,16 @@
           "backgroundColor": "#EEF3FE"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Камера потрібна, щоб сфотографувати коробку ліків і прочитати назву та термін",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true

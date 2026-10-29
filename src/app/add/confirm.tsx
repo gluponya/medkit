@@ -1,8 +1,19 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type ScrollViewInstance,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { rememberCode } from '@/data/barcodes';
 import { useCurrentCabinet } from '@/data/cabinets';
 import { addMedicine, addPackage, sameMedicine, useKnownMedicines, usePackCount } from '@/data/medicines';
 import { localDay } from '@/domain/expiry';
@@ -11,6 +22,8 @@ import { ExpirySummary, UnknownExpirySummary } from '@/features/add/ExpiryPicker
 import { draftExpires, expiryAnswered, useDraft } from '@/features/add/draft';
 import { finishAdd } from '@/features/add/finish';
 import { FORM_ICON, FORM_NAME, UNIT } from '@/features/add/labels';
+import { useScan } from '@/features/add/scan';
+import { shownStrength } from '@/features/medicine/strength';
 import { useT } from '@/i18n';
 import { BackBar } from '@/ui/BackBar';
 import { Button } from '@/ui/Button';
@@ -19,6 +32,7 @@ import { Icon, type IconName } from '@/ui/Icon';
 import { Tile } from '@/ui/Tile';
 import { cardShadow, colors, radius, spacing } from '@/ui/theme';
 import { type } from '@/ui/typography';
+import { useFieldInView } from '@/ui/useFieldInView';
 
 /** Five digits is more than any pack holds, and keeps the number on one line. */
 const MAX_QUANTITY = 99999;
@@ -48,6 +62,9 @@ export default function ConfirmScreen() {
     if (onlySize !== null && useDraft.getState().quantity === null) useDraft.getState().set({ quantity: onlySize });
   }, [entry?.id, onlySize]);
 
+  const scroll = useRef<ScrollViewInstance>(null);
+  const fieldInView = useFieldInView(scroll);
+
   // The draft was dropped under the screen (a finished add), nothing to show.
   if (!entry || !cabinet) return null;
 
@@ -61,7 +78,7 @@ export default function ConfirmScreen() {
     form === 'other'
       ? (formWord(entry.formText) ?? t(FORM_NAME.other).toLocaleLowerCase())
       : t(FORM_NAME[form]).toLocaleLowerCase(),
-    entry.strength,
+    shownStrength(entry.strength),
   ]
     .filter(Boolean)
     .join(', ');
@@ -94,6 +111,8 @@ export default function ConfirmScreen() {
               rx: entry.rx,
             },
           });
+      const { scan } = useScan.getState();
+      if (scan) rememberCode(scan.gtin, entry.id, quantity !== null && sizes.includes(quantity) ? quantity : null);
       finishAdd(added);
     } finally {
       setSaving(false);
@@ -103,105 +122,126 @@ export default function ConfirmScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <BackBar label={t('confirm.back')} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.head}>
-          <View style={styles.mark}>
-            <Icon name={FORM_ICON[form]} size={30} color={colors.primary} />
-          </View>
-          <View style={styles.fill}>
-            <FitTitle>{draft.name}</FitTitle>
-            {details ? <Text style={type.label}>{details}</Text> : null}
-          </View>
-        </View>
-
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.other}>
-          <Icon name="arrows-exchange" size={20} color={colors.primary} />
-          <Text style={[type.cardTitle, styles.primary]}>{t('confirm.other')}</Text>
-        </Pressable>
-
-        {existing ? (
-          <View style={styles.has}>
-            <Icon name="stack" size={22} />
-            <Text style={[type.bodyMedium, styles.muted, styles.fill]}>
-              {packCount > 0
-                ? t('confirm.has', { count: packCount, cabinet: cabinet.name })
-                : t('confirm.hasNoPacks', { cabinet: cabinet.name })}
-            </Text>
-          </View>
-        ) : null}
-
-        {ready ? (
-          <View style={styles.expiry}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('confirm.changeExpiry')}
-              onPress={() => router.push('/add/when')}
-            >
-              {year !== null && month !== null ? (
-                <ExpirySummary year={year} month={month} today={localDay(new Date())} />
-              ) : (
-                <UnknownExpirySummary />
-              )}
-            </Pressable>
-          </View>
-        ) : null}
-
-        <View style={[styles.card, styles.quantity, zero && styles.quantityWrong]}>
-          <View style={styles.fill}>
-            <Text style={type.label}>{t('confirm.inPack')}</Text>
-            <View style={styles.amount}>
-              <TextInput
-                value={draft.quantity === null ? '' : String(draft.quantity)}
-                onChangeText={(text) => {
-                  const digits = text.replace(/\D/g, '');
-                  setQuantity(digits ? Number(digits) : null);
-                }}
-                placeholder="0"
-                placeholderTextColor={colors.line}
-                keyboardType="number-pad"
-                maxLength={5}
-                style={styles.big}
-              />
-              <Text style={[type.bodyMedium, styles.unit]}>{t(UNIT[form])}</Text>
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView
+          ref={scroll}
+          {...fieldInView}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.head}>
+            <View style={styles.mark}>
+              <Icon name={FORM_ICON[form]} size={30} color={colors.primary} />
+            </View>
+            <View style={styles.fill}>
+              <FitTitle>{draft.name}</FitTitle>
+              {details ? <Text style={type.label}>{details}</Text> : null}
             </View>
           </View>
-          <SquareButton
-            icon="minus"
-            label={t('medicine.less')}
-            disabled={!draft.quantity}
-            onPress={() => setQuantity((draft.quantity ?? 0) - 1 || null)}
-          />
-          <SquareButton icon="plus" label={t('medicine.more')} onPress={() => setQuantity((draft.quantity ?? 0) + 1)} />
-        </View>
-        {zero ? <Text style={[type.bodyMedium, styles.wrong]}>{t('confirm.zero')}</Text> : null}
-        {sizes.length > 1 ? (
-          <View style={styles.sizes}>
-            {sizes.map((n) => (
-              <View key={n} style={styles.fill}>
-                <Tile label={String(n)} picked={draft.quantity === n} onPress={() => setQuantity(n)} height={52} />
-              </View>
-            ))}
-          </View>
-        ) : null}
-      </ScrollView>
 
-      <View style={styles.footer}>
-        {ready ? (
-          <Button
-            label={t('add.addTo', { cabinet: cabinet.name })}
-            icon="plus"
-            onPress={save}
-            disabled={saving || zero}
-          />
-        ) : (
-          <Button
-            label={t('confirm.setExpiry')}
-            icon="calendar-check"
-            onPress={() => router.push('/add/when')}
-            disabled={zero}
-          />
-        )}
-      </View>
+          <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.other}>
+            <Icon name="arrows-exchange" size={20} color={colors.primary} />
+            <Text style={[type.cardTitle, styles.primary]}>{t('confirm.other')}</Text>
+          </Pressable>
+
+          {existing ? (
+            <View style={styles.has}>
+              <Icon name="stack" size={22} />
+              <Text style={[type.bodyMedium, styles.muted, styles.fill]}>
+                {packCount > 0
+                  ? t('confirm.has', {
+                      count: packCount,
+                      cabinet: cabinet.name,
+                    })
+                  : t('confirm.hasNoPacks', { cabinet: cabinet.name })}
+              </Text>
+            </View>
+          ) : null}
+
+          {ready ? (
+            <View style={styles.expiry}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('confirm.changeExpiry')}
+                onPress={() => router.push('/add/when')}
+              >
+                {year !== null && month !== null ? (
+                  <ExpirySummary year={year} month={month} today={localDay(new Date())} />
+                ) : (
+                  <UnknownExpirySummary />
+                )}
+              </Pressable>
+            </View>
+          ) : null}
+
+          <View style={[styles.card, styles.quantity, zero && styles.quantityWrong]}>
+            <View style={styles.fill}>
+              <Text style={type.label}>{t('confirm.inPack')}</Text>
+              <View style={styles.amount}>
+                {/* iOS does not resize a text field when its value is set by the buttons, so the second
+                  digit got clipped: a hidden copy of the number sizes the box, the field covers it. */}
+                <View>
+                  <Text style={[styles.big, styles.sizer]}>
+                    {draft.quantity === null ? '0' : String(draft.quantity)}
+                  </Text>
+                  <TextInput
+                    value={draft.quantity === null ? '' : String(draft.quantity)}
+                    onChangeText={(text) => {
+                      const digits = text.replace(/\D/g, '');
+                      setQuantity(digits ? Number(digits) : null);
+                    }}
+                    placeholder="0"
+                    placeholderTextColor={colors.line}
+                    keyboardType="number-pad"
+                    maxLength={5}
+                    style={[styles.big, StyleSheet.absoluteFill]}
+                  />
+                </View>
+                <Text style={[type.bodyMedium, styles.unit]}>{t(UNIT[form])}</Text>
+              </View>
+            </View>
+            <SquareButton
+              icon="minus"
+              label={t('medicine.less')}
+              disabled={!draft.quantity}
+              onPress={() => setQuantity((draft.quantity ?? 0) - 1 || null)}
+            />
+            <SquareButton
+              icon="plus"
+              label={t('medicine.more')}
+              onPress={() => setQuantity((draft.quantity ?? 0) + 1)}
+            />
+          </View>
+          {zero ? <Text style={[type.bodyMedium, styles.wrong]}>{t('confirm.zero')}</Text> : null}
+          {sizes.length > 1 ? (
+            <View style={styles.sizes}>
+              {sizes.map((n) => (
+                <View key={n} style={styles.fill}>
+                  <Tile label={String(n)} picked={draft.quantity === n} onPress={() => setQuantity(n)} height={52} />
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </ScrollView>
+
+        <View style={styles.footer}>
+          {ready ? (
+            <Button
+              label={t('add.addTo', { cabinet: cabinet.name })}
+              icon="plus"
+              onPress={save}
+              disabled={saving || zero}
+            />
+          ) : (
+            <Button
+              label={t('confirm.setExpiry')}
+              icon="calendar-check"
+              onPress={() => router.push('/add/when')}
+              disabled={zero}
+            />
+          )}
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -290,6 +330,8 @@ const styles = StyleSheet.create({
   wrong: { color: colors.danger, marginTop: spacing.sm },
   amount: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
   big: { ...type.hero, fontSize: 34, lineHeight: 42, minWidth: 24, padding: 0 },
+  // A little extra room for the caret after the last digit.
+  sizer: { opacity: 0, paddingRight: 4 },
   unit: { color: colors.inkMuted, marginBottom: 6 },
   square: {
     width: 48,

@@ -70,8 +70,7 @@ export default function Home() {
   if (!cabinet) return null;
 
   const soon = () => router.push('/soon');
-  // The scanner is not built yet, so adding starts with the Register search.
-  const find = () => router.push('/add/search');
+  const find = () => router.push('/add/scan');
   const showSteps = !stepsFinished && !finishedNow;
   // The typed-routes generator lists /medicine/[id] as a static path on Windows, so it is cast.
   const openMedicine = (id: string) => router.push(`/medicine/${id}` as Href);

@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState, type ReactNode } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useMedicine, usePacks, type Medicine } from '@/data/medicines';
@@ -18,6 +18,7 @@ import {
 } from '@/domain/reminders';
 import { stockOf } from '@/domain/stock';
 import { FORM_NAME, UNIT } from '@/features/add/labels';
+import { shownStrength } from '@/features/medicine/strength';
 import { useI18n, useT } from '@/i18n';
 import { accusativeUk } from '@/i18n/grammar';
 import { BackBar } from '@/ui/BackBar';
@@ -89,7 +90,7 @@ function ReminderForm({ medicine, saved }: { medicine: Medicine; saved: Reminder
 
   const form = medicine.form ?? 'other';
   const unit = t(UNIT[form]);
-  const subtitle = [t(FORM_NAME[form]), medicine.strength].filter(Boolean).join(', ');
+  const subtitle = [t(FORM_NAME[form]), shownStrength(medicine.strength)].filter(Boolean).join(', ');
   const name = language === 'uk' ? accusativeUk(medicine.name) : medicine.name;
 
   const choose = (p: Pick) => {
@@ -342,10 +343,13 @@ function Round({ icon, label, onPress }: { icon: 'plus' | 'minus'; label: string
 function Sheet({ onClose, children }: { onClose: () => void; children: ReactNode }) {
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.scrim} onPress={onClose} />
-      <SafeAreaView edges={['bottom']} style={styles.sheet}>
-        {children}
-      </SafeAreaView>
+      {/* Rides on the keyboard, or «Скільки днів» ends up under it. */}
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable style={styles.scrim} onPress={onClose} />
+        <SafeAreaView edges={['bottom']} style={styles.sheet}>
+          {children}
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

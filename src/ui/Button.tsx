@@ -53,7 +53,15 @@ export function Button({
     >
       <View style={styles.row}>
         {icon ? <Icon name={icon} size={20} color={fg} /> : null}
-        <Text style={[type.button, { color: fg }]}>{label}</Text>
+        {/* One line always: a label too long for a narrow button shrinks a little instead of wrapping. */}
+        <Text
+          style={[type.button, styles.label, { color: fg }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+        >
+          {label}
+        </Text>
       </View>
     </PressScale>
   );
@@ -67,5 +75,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    maxWidth: '100%',
+  },
+  label: { flexShrink: 1 },
 });

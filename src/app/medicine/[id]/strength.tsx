@@ -55,8 +55,6 @@ export default function StrengthScreen() {
           placeholder="200"
           placeholderTextColor={colors.inkMuted}
           style={[type.input, styles.input]}
-          returnKeyType="done"
-          onSubmitEditing={done}
         />
         <Text style={[type.bodyMedium, styles.unit]}>{unit}</Text>
       </View>

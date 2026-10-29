@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { ScrollView, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useCabinets } from '@/data/cabinets';
@@ -13,14 +13,15 @@ import { AddCabinetRow, CabinetRows, JoinCabinetRow } from './CabinetRows';
 
 /**
  * The cabinet switcher (docs/screens.md): the name on Home opens it. A row
- * makes that cabinet current; «Керувати» goes to the Cabinets screen.
+ * makes that cabinet current; «Керувати» opens the current cabinet's settings,
+ * since the Cabinets screen would only repeat this list (the owner, 2026-10-29).
  */
 export function Switcher({ currentId, onClose }: { currentId: string; onClose: () => void }) {
   const t = useT();
   const cabinets = useCabinets();
   const setCurrent = useSession((s) => s.setCurrentCabinet);
 
-  const go = (to: '/cabinets' | '/place' | '/join-code') => {
+  const go = (to: Href) => {
     onClose();
     router.push(to);
   };
@@ -31,7 +32,8 @@ export function Switcher({ currentId, onClose }: { currentId: string; onClose: (
         <Text style={[type.sectionTitle, styles.fill]}>{t('cabinets.title')}</Text>
         <Pressable
           accessibilityRole="button"
-          onPress={() => go('/cabinets')}
+          // The typed-routes generator lists /cabinets/[id] as a static path on Windows, so it is cast.
+          onPress={() => go(`/cabinets/${currentId}` as Href)}
           style={({ pressed }) => [styles.manage, pressed && styles.pressed]}
         >
           <Icon name="settings" size={18} color={colors.primary} />

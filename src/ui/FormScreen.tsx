@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackBar } from './BackBar';
@@ -8,6 +8,7 @@ import { FitTitle } from './FitTitle';
 import type { IconName } from './Icon';
 import { colors, spacing } from './theme';
 import { type } from './typography';
+import { useFieldInView } from './useFieldInView';
 
 /**
  * A pushed screen with one job and, mostly, one button at the bottom: ‹ back, the
@@ -34,14 +35,16 @@ export function FormScreen({
   /** Opened scrolled to the bottom, where the row it was opened for is. */
   atEnd?: boolean;
 }) {
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ScrollViewInstance>(null);
   const scrolled = useRef(false);
+  const fieldInView = useFieldInView(scroll);
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <BackBar label={back} />
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           ref={scroll}
+          {...fieldInView}
           style={styles.fill}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"

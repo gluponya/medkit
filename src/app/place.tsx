@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   View,
+  type TextInputInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -50,7 +51,7 @@ function PlaceForm({ first }: { first: Place }) {
   const [icon, setIcon] = useState<CabinetIcon>(defaultIcon(first));
   const [titleInBar, setTitleInBar] = useState(false);
   const [saving, setSaving] = useState(false);
-  const nameInput = useRef<TextInput>(null);
+  const nameInput = useRef<TextInputInstance>(null);
 
   const pick = (next: Place) => {
     if (next === place) return;

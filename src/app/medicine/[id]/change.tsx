@@ -11,6 +11,7 @@ import { formWord } from '@/domain/register';
 import { FORM_ICON, FORM_NAME, UNIT } from '@/features/add/labels';
 import { cancelChange, finishChange, unitChanged, useChange, type ChangeStep } from '@/features/change/draft';
 import { packsText, reminderWhen } from '@/features/change/text';
+import { shownStrength } from '@/features/medicine/strength';
 import { useT } from '@/i18n';
 import { BackBar } from '@/ui/BackBar';
 import { Button } from '@/ui/Button';
@@ -53,7 +54,7 @@ export default function ChangeScreen() {
     [
       { key: 'inn' as const, text: inn ?? '' },
       { key: 'form' as const, text: formText(form, text) },
-      { key: 'strength' as const, text: strength ?? '' },
+      { key: 'strength' as const, text: shownStrength(strength) ?? '' },
     ].filter((p) => p.text !== '');
 
   const entry = target.register;

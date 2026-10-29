@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, type NativeSyntheticEvent, type StyleProp, type TextLayoutEventData, type TextStyle } from 'react-native';
+import { StyleSheet, Text, type StyleProp, type TextLayoutEvent, type TextStyle } from 'react-native';
 
 import { breaksWord } from '@/domain/text';
 
@@ -29,7 +29,7 @@ export function FitText({
   /** Never larger than this; smaller never breaks a word, so it needs no new fitting. */
   cap?: number;
 }) {
-  const base = StyleSheet.flatten(style);
+  const base = StyleSheet.flatten(style) ?? {};
   const full = base.fontSize ?? 16;
   const ratio = (base.lineHeight ?? full * 1.2) / full;
   // Keyed by the text: a new text starts again from the full size.
@@ -37,7 +37,7 @@ export function FitText({
   const state = fit.text === children ? fit : { text: children, size: full, done: false };
   const size = state.done && cap !== undefined ? Math.min(state.size, cap) : state.size;
 
-  const onTextLayout = (e: NativeSyntheticEvent<TextLayoutEventData>) => {
+  const onTextLayout = (e: TextLayoutEvent) => {
     if (state.done) return;
     if (breaksWord(e.nativeEvent.lines) && state.size - step >= minSize) {
       setFit({ ...state, size: state.size - step });

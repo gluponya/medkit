@@ -18,6 +18,12 @@ export const colors = {
   success: '#1F9D63',
   successSoft: '#E2F5EB',
   white: '#FFFFFF',
+  /** The camera's screens: the dark behind the picture and its round buttons. */
+  night: '#222736',
+  nightSoft: '#3A4050',
+  nightMuted: '#A3AABB',
+  /** Over the camera's picture around the frame: dims it so the words read. */
+  nightScrim: 'rgba(34, 39, 54, 0.6)',
 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 } as const;

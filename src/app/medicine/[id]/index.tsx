@@ -26,6 +26,7 @@ import { FORM_ICON, FORM_NAME, UNIT } from '@/features/add/labels';
 import { startPack } from '@/features/add/pack';
 import { useChange } from '@/features/change/draft';
 import { useCategoryName } from '@/features/categories/categories';
+import { shownStrength } from '@/features/medicine/strength';
 import { useT } from '@/i18n';
 import { BackBar } from '@/ui/BackBar';
 import { Button } from '@/ui/Button';
@@ -104,7 +105,7 @@ export default function MedicineScreen() {
   const edits = canEdit(cabinet?.role ?? null);
   const dose = reminder?.times[0]?.dose ?? 1;
   const today = localDay(new Date());
-  const details = [medicine.inn, t(FORM_NAME[form]).toLocaleLowerCase(), medicine.strength].filter(Boolean).join(', ');
+  const details = [medicine.inn, t(FORM_NAME[form]).toLocaleLowerCase(), shownStrength(medicine.strength)].filter(Boolean).join(', ');
   const subtitle = details.charAt(0).toLocaleUpperCase() + details.slice(1);
 
   const openCategories = () =>
@@ -418,7 +419,7 @@ export default function MedicineScreen() {
               label={t('medicine.addMore')}
               icon="plus"
               variant="secondary"
-              onPress={() => router.push('/add/search')}
+              onPress={() => router.push('/add/scan')}
             />
           </View>
           <View style={styles.fill}>

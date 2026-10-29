@@ -13,7 +13,7 @@ import { OfflineError, syncOnce, type LocalDb } from './engine';
  * Runs the sync engine (./engine.ts) when there is something to do: on start,
  * on return to the app, when the network comes back, two seconds after a change
  * goes to the outbox, and on a Realtime nudge from another member's change.
- * A phone with no shared cabinet never touches the network.
+ * A phone that has never shared or joined a cabinet never touches the network.
  */
 
 const local: LocalDb = {
@@ -26,6 +26,7 @@ const local: LocalDb = {
 
 let running: Promise<void> | null = null;
 let again = false;
+let forced = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let channel: RealtimeChannel | null = null;
 
@@ -39,9 +40,14 @@ async function hasWork(): Promise<boolean> {
 /**
  * One cycle now, or after the running one. Rejects when the server cannot be
  * reached, for the screens that wait on it (inviting, joining).
+ *
+ * `force` runs it even with nothing synced on the phone yet: a phone that has
+ * just joined its first cabinet has no synced cabinet and an empty outbox, and
+ * without it the cabinet never came down (the owner, 2026-10-26).
  */
-export function syncNow(): Promise<void> {
+export function syncNow(force = false): Promise<void> {
   if (!hasBackend) return Promise.reject(new OfflineError('no server in this build'));
+  if (force) forced = true;
   if (running) {
     again = true;
     return running;
@@ -50,7 +56,9 @@ export function syncNow(): Promise<void> {
     try {
       do {
         again = false;
-        if (!(await hasWork())) break;
+        const now = forced;
+        forced = false;
+        if (!now && !(await hasWork())) break;
         const me = await signedIn();
         if (await syncOnce(local, supabase, me)) void rescheduleDoses();
         listen();
@@ -63,12 +71,12 @@ export function syncNow(): Promise<void> {
 }
 
 /** A cycle a little later, for the background: failures wait for the next one. */
-function requestSync(delayMs = 0) {
+function requestSync(delayMs = 0, force = false) {
   if (!hasBackend) return;
   if (timer) clearTimeout(timer);
   timer = setTimeout(() => {
     timer = null;
-    syncNow().catch((e: unknown) => {
+    syncNow(force).catch((e: unknown) => {
       if (__DEV__ && !(e instanceof OfflineError)) console.warn('sync failed:', e);
     });
   }, delayMs);
@@ -87,7 +95,9 @@ function listen() {
 /** Starts the triggers; returns the stop. Called once the migrations ran. */
 export function startSync(): () => void {
   if (!hasBackend) return () => {};
-  requestSync();
+  // A phone that has been on the server once asks it on start even with no
+  // synced cabinet here: a cabinet it joined may not have come down yet.
+  void supabase.auth.getSession().then(({ data }) => requestSync(0, data.session !== null));
   const app = AppState.addEventListener('change', (state) => {
     if (state === 'active') requestSync();
   });

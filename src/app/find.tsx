@@ -12,6 +12,7 @@ import { categoryCounts, findMedicines, type Found } from '@/domain/find';
 import { matchParts } from '@/domain/register';
 import { CATEGORY_ICON, CATEGORY_NAME, FORM_NAME } from '@/features/add/labels';
 import { ownIcon } from '@/features/categories/categories';
+import { shownStrength } from '@/features/medicine/strength';
 import { useT } from '@/i18n';
 import { BackBar } from '@/ui/BackBar';
 import { FitText } from '@/ui/FitText';
@@ -57,7 +58,7 @@ export default function FindScreen() {
   const asked = query.trim() !== '' || category !== null;
 
   const details = (m: Found) =>
-    [m.inn, m.form ? t(FORM_NAME[m.form]).toLocaleLowerCase() : null, m.strength].filter(Boolean).join(', ');
+    [m.inn, m.form ? t(FORM_NAME[m.form]).toLocaleLowerCase() : null, shownStrength(m.strength)].filter(Boolean).join(', ');
 
   const dateText = (m: Found) => {
     if (m.status === 'expired') return t('home.expired');

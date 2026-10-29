@@ -35,7 +35,7 @@ async function call<T>(fn: string, args: Record<string, unknown>): Promise<T> {
 }
 
 const sync = () =>
-  syncNow().catch((e: unknown) => {
+  syncNow(true).catch((e: unknown) => {
     throw new NoConnectionError(String(e));
   });
 
