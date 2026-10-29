@@ -122,7 +122,7 @@ Deno.serve(async (request) => {
     const back = new URL(request.url).searchParams.get('return') ?? '';
     if (!botToken) return new Response('TELEGRAM_APP_BOT_TOKEN is not set', { status: 503 });
     if (!APP_RETURN.test(back)) return new Response('return must be the app', { status: 400 });
-    const page = `${webUrl}/telegram-login.html?return=${encodeURIComponent(back)}`;
+    const page = `${webUrl}/telegram-login?return=${encodeURIComponent(back)}`;
     const auth = new URL('https://oauth.telegram.org/auth');
     auth.searchParams.set('bot_id', botToken.split(':')[0]);
     auth.searchParams.set('origin', webUrl);
