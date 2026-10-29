@@ -387,9 +387,11 @@ share one row. Shipped with the app next to the Register index.
 | reviewed | A person has checked the row against the source. Unreviewed rows are not shipped. |
 
 The Register CSV has none of this. It is in the instruction text («Фармакокінетика»,
-«Взаємодія з іншими лікарськими засобами», «Особливості застосування»), which is
-already turned into text on the server. A model pulls the fields out once per INN;
-a person then reviews each row before it ships.
+«Взаємодія з іншими лікарськими засобами», «Особливості застосування»). One
+instruction per INN (a tablet or capsule one first) is downloaded and turned into
+text, two reviewers pull the fields out apart from each other, and a row ships
+(`src/domain/substances.ts`) once they agree and every quote is found in the
+instruction word for word.
 
 A medicine with several substances uses the longest half-life and the strictest
 alcohol rule of them. No row, or no half-life in the instruction: the block is
@@ -397,8 +399,9 @@ simply not shown. The app never guesses a number.
 
 ### Rules
 
-Computed from the person's own `taken` Intakes (reminders and «as needed» alike),
-so only in `with_intake` cabinets and only for what was actually marked.
+Computed from the person's own `taken` Intakes (reminders and «as needed» alike).
+With no marked dose (any `expiry_only` cabinet, or nothing marked yet) the block
+gives only the general time: «Виводиться приблизно за 2 доби».
 
 - **Last dose**: the latest `taken` Intake of the medicine.
 - **Gone by**: last dose + 5 × the longest half-life (drug or metabolite), using
@@ -426,6 +429,18 @@ so only in `with_intake` cabinets and only for what was actually marked.
   sleep and nerves, vitamins). Others get rows later.
 - No separate question or button: it is a quiet note at the bottom of the
   medicine screen (see `docs/screens.md`, Medicine).
+
+### Decided (2026-10-29)
+
+- Not everyone wants it: a Settings switch «Час в організмі й алкоголь» under
+  «Ліки», off until turned on. Not asked in the first steps.
+- Launch rows: 39 of the 44 commonest substances in home cabinets (pain and fever,
+  allergy, antibiotics, stomach, cough, sleep and nerves, heart and pressure,
+  sugar, cholesterol); five wait because their instruction gives no half-life.
+  More come in batches.
+- A half-life given as a mean with a range («приблизно 11 годин (діапазон 9–14)»)
+  is the mean: the range is the spread between people, and its top would make a
+  common medicine look like it stays for weeks.
 
 ## No proven effect
 

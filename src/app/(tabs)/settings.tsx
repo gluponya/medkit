@@ -77,6 +77,11 @@ export default function SettingsScreen() {
             toggle={{ on: prefs.markNoEvidence === true, onChange: (on) => prefs.set({ markNoEvidence: on }) }}
           />
         </Group>
+          <Row
+            icon="clock"
+            label={t('settings.bodyTime')}
+            toggle={{ on: prefs.showBodyTime, onChange: (on) => prefs.set({ showBodyTime: on }) }}
+          />
 
         <Group title={t('settings.notifications')}>
           <Row

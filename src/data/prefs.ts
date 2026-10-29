@@ -22,6 +22,8 @@ interface PrefsState {
    * Null until answered in the first steps; never synced.
    */
   markNoEvidence: boolean | null;
+  /** «В організмі» on the medicine screen (docs/model.md, "Time in the body and alcohol"). */
+  showBodyTime: boolean;
   set: (patch: Partial<Omit<PrefsState, 'set'>>) => void;
 }
 
@@ -33,6 +35,7 @@ export const usePrefs = create<PrefsState>()(
       missedRepeatMinutes: 15,
       weeklyDigest: true,
       markNoEvidence: null,
+      showBodyTime: false,
       set: (patch) => set(patch),
     }),
     { name: 'prefs', storage: createJSONStorage(() => AsyncStorage) },

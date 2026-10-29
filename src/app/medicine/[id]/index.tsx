@@ -26,6 +26,7 @@ import { stockOf } from '@/domain/stock';
 import { FORM_ICON, FORM_NAME, UNIT } from '@/features/add/labels';
 import { startPack } from '@/features/add/pack';
 import { startPackChange, useChange } from '@/features/change/draft';
+import { BodyTime } from '@/features/medicine/BodyTime';
 import { useCategoryName } from '@/features/categories/categories';
 import { shownStrength } from '@/features/medicine/strength';
 import { useT } from '@/i18n';
@@ -417,6 +418,8 @@ export default function MedicineScreen() {
             ) : null}
           </View>
         ) : null}
+
+        <BodyTime medicineId={medicine.id} registerId={registerId} />
       </ScrollView>
 
       <View style={styles.bottom}>
