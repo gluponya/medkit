@@ -9,7 +9,8 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.gluponya.medkit"
+      "bundleIdentifier": "com.gluponya.medkit",
+      "usesAppleSignIn": true
     },
     "android": {
       "package": "com.gluponya.medkit",

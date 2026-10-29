@@ -30,6 +30,20 @@ let forced = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let channel: RealtimeChannel | null = null;
 
+let paused = false;
+
+/**
+ * A signed-in account keeps every cabinet on the server, not only the shared
+ * ones (docs/model.md, "Signing in"): a cabinet still on the phone only goes up
+ * whole, as an invited one does, with this person as its owner.
+ */
+async function backUpAll(): Promise<void> {
+  const { data } = await supabase.auth.getSession();
+  const user = data.session?.user;
+  if (user && !user.is_anonymous) {
+    await sqlite.runAsync(`UPDATE cabinets SET synced = 1, role = 'owner' WHERE synced = 0`);
+  }
+}
 async function hasWork(): Promise<boolean> {
   const rows = await sqlite.getAllAsync(
     `SELECT 1 FROM cabinets WHERE synced = 1 UNION ALL SELECT 1 FROM outbox LIMIT 1`,
@@ -48,6 +62,7 @@ async function hasWork(): Promise<boolean> {
 export function syncNow(force = false): Promise<void> {
   if (!hasBackend) return Promise.reject(new OfflineError('no server in this build'));
   if (force) forced = true;
+  if (paused) return Promise.resolve();
   if (running) {
     again = true;
     return running;
@@ -59,6 +74,8 @@ export function syncNow(force = false): Promise<void> {
         const now = forced;
         forced = false;
         if (!now && !(await hasWork())) break;
+        if (paused) break;
+        await backUpAll();
         const me = await signedIn();
         if (await syncOnce(local, supabase, me)) void rescheduleDoses();
         listen();
@@ -71,7 +88,21 @@ export function syncNow(force = false): Promise<void> {
 }
 
 /** A cycle a little later, for the background: failures wait for the next one. */
-function requestSync(delayMs = 0, force = false) {
+/**
+ * Runs `fn` with no cycle running or starting: signing in changes who the
+ * phone is on the server, and a cycle in between would see the wrong cabinets.
+ */
+export async function whileSyncPaused<T>(fn: () => Promise<T>): Promise<T> {
+  paused = true;
+  try {
+    await running?.catch(() => {});
+    return await fn();
+  } finally {
+    paused = false;
+  }
+}
+
+export function requestSync(delayMs = 0, force = false) {
   if (!hasBackend) return;
   if (timer) clearTimeout(timer);
   timer = setTimeout(() => {

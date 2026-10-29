@@ -10,6 +10,7 @@ import { db } from './db/client';
 import { cabinets, medicines, packages } from './db/schema';
 import { rescheduleDoses } from './notifications';
 import { useSession } from './session';
+import { requestSync } from './sync';
 
 export type Cabinet = typeof cabinets.$inferSelect;
 
@@ -32,6 +33,8 @@ export async function createCabinet(input: {
     icon: input.icon,
     mode: input.mode,
   });
+  // A signed-in account keeps it on the server too.
+  requestSync();
   const session = useSession.getState();
   session.setCurrentCabinet(id);
   if (existing > 0 && session.switcherHint === 'unseen') useSession.setState({ switcherHint: 'due' });

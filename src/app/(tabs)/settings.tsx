@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAccount } from '@/data/account';
 import { useCabinets } from '@/data/cabinets';
 import { askForNotifications, rescheduleDoses } from '@/data/notifications';
 import { EXPIRY_NOTICE_DAYS, MISSED_REPEAT_MINUTES, usePrefs } from '@/data/prefs';
@@ -32,6 +33,7 @@ export default function SettingsScreen() {
   const t = useT();
   const cabinets = useCabinets();
   const prefs = usePrefs();
+  const account = useAccount();
   const language = useI18n((s) => s.language);
   const [editing, setEditing] = useState<Editing>(null);
   const close = () => setEditing(null);
@@ -76,12 +78,12 @@ export default function SettingsScreen() {
             label={t('settings.markNoEvidence')}
             toggle={{ on: prefs.markNoEvidence === true, onChange: (on) => prefs.set({ markNoEvidence: on }) }}
           />
-        </Group>
           <Row
             icon="clock"
             label={t('settings.bodyTime')}
             toggle={{ on: prefs.showBodyTime, onChange: (on) => prefs.set({ showBodyTime: on }) }}
           />
+        </Group>
 
         <Group title={t('settings.notifications')}>
           <Row
@@ -109,13 +111,13 @@ export default function SettingsScreen() {
           />
         </Group>
 
-        {/* Signing in needs the backend; until then «Скоро буде». */}
         <Group title={t('settings.newPhone')}>
           <Row
             icon="device-mobile-up"
             label={t('settings.keepAccess')}
-            hint={t('settings.keepAccessHint')}
-            onPress={() => router.push('/soon')}
+            value={account ? t(`signIn.${account}`) : undefined}
+            hint={account ? undefined : t('settings.keepAccessHint')}
+            onPress={() => router.push('/sign-in')}
           />
         </Group>
 

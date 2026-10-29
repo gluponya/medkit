@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Аптечка</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    font: 17px -apple-system, system-ui, sans-serif; background: #F6F4EF; color: #1F2A2E; }
+</style>
+</head>
+<body>
+<p id="text">Повертаємось до Аптечки…</p>
+<script>
+  // Signing in on the phone (supabase/functions/sign-in): Telegram sends the
+  // browser here with its signed result in the hash; it goes on to the app,
+  // whose address came in `return`. Only the app's own schemes are followed.
+  (function () {
+    var back = new URLSearchParams(location.search).get('return') || '';
+    var result = new URLSearchParams(location.hash.slice(1)).get('tgAuthResult') || 'false';
+    if (!/^(exp|exps|medkit):\/\//.test(back)) {
+      document.getElementById('text').textContent = 'Відкрийте Аптечку ще раз.';
+      return;
+    }
+    location.replace(back + (back.indexOf('?') < 0 ? '?' : '&') + 'tgAuthResult=' + encodeURIComponent(result));
+  })();
+</script>
+</body>
+</html>

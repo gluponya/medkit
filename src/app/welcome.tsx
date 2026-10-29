@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
@@ -8,7 +8,7 @@ import { Icon } from '@/ui/Icon';
 import { colors, spacing } from '@/ui/theme';
 import { type } from '@/ui/typography';
 
-/** The first screen of the first launch (docs/screens.md, "Welcome"). No account. */
+/** The first screen of the first launch (docs/screens.md, "Welcome"). No account needed. */
 export default function Welcome() {
   const t = useT();
 
@@ -31,6 +31,10 @@ export default function Welcome() {
         <Text style={[type.bodyMedium, styles.center, styles.muted]}>{t('welcome.local')}</Text>
         <Button label={t('welcome.start')} onPress={() => router.push('/place')} />
         <Button label={t('welcome.invite')} icon="users" variant="secondary" onPress={() => router.push('/join-code')} />
+        {/* A new phone of someone who signed in. The Telegram mini app (web) is signed in already. */}
+        {Platform.OS === 'web' ? null : (
+          <Button label={t('welcome.signIn')} variant="outline" onPress={() => router.push('/sign-in')} />
+        )}
         <Text style={[type.secondary, styles.center, styles.terms]}>
           {beforeTerms}
           <Text style={styles.link}>{t('welcome.termsLink')}</Text>

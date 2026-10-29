@@ -9,8 +9,8 @@ shared by all users from the start (see "Barcodes").
 
 The phone signs in to Supabase **anonymously** on first launch, without asking
 anything (decided 2026-10-15). That gives it an identity for the barcode map,
-the photo limit and later sharing; an email or Apple sign-in can be linked to
-the same user later, so nothing is lost.
+the photo limit and later sharing. Signing in with Telegram or Apple later
+moves it into that account, so nothing is lost (see "Signing in").
 
 ## On the phone: two databases
 
@@ -157,10 +157,10 @@ when the line is unticked, crossed out or done.
 ### Person and Membership (shared cabinets only)
 
 Sharing needs no account (decided 2026-10-22): the anonymous user from the
-first launch can invite and join. Signing in (Apple, Google, phone) is only
-offered, in Settings and once after joining or inviting, as «Зберегти доступ
-на новому телефоні». Without it, a new phone loses the shared cabinets and the
-person has to be invited again.
+first launch can invite and join. Signing in is only offered, in Settings as
+«Зберегти доступ» and on Welcome as «Повернути мої аптечки» (see "Signing
+in"). Without it, a new phone loses the shared cabinets and the person has to
+be invited again.
 
 A person has a `name` that other members see. It is asked once, when joining
 or first inviting («Як вас підписати для інших?»), and changed in Settings.
@@ -230,8 +230,47 @@ anyone else it is «Вийти з аптечки», and the cabinet stays for th
 
 **No network.** Nothing stops. Invite and join need the network, and say so.
 
-**Identity.** The anonymous user of the first launch (see the top). Its name
-is a `profiles` row; the members list and «Олена запрошує вас» read it.
+**Identity.** The anonymous user of the first launch (see the top), or the
+account it signed in to. Its name is a `profiles` row; the members list and
+«Олена запрошує вас» read it.
+
+## Signing in
+
+Decided with the owner (2026-10-29):
+
+- **With Telegram or Apple.** Telegram is the same account as the Telegram
+  mini app (docs/telegram.md): email `tg<telegram id>@telegram.invalid`.
+  Apple is there because the App Store asks for it beside another sign-in.
+  Google and a phone number with a code are left for later (a code by SMS
+  costs money and needs a provider).
+- **Every cabinet goes to the server once signed in**, not only the shared
+  ones: each is marked synced and goes up whole, as an invited one does, with
+  the person as its owner; a cabinet made later follows. Reminders, intakes,
+  the shopping list and the settings stay on the phone, as for a shared
+  cabinet.
+- **Into an account that has cabinets already**, the phone's are added to them:
+  the server moves the phone's anonymous user into the account
+  (`merge_account`: memberships with the stronger role, the name if the
+  account has none, own categories, barcode picks) and deletes it. Nothing is
+  overwritten.
+
+How (`supabase/functions/sign-in`, `src/data/account.ts`):
+
+1. Telegram on a phone is its Login Widget in the browser. The app opens the
+   function, which sends the browser to oauth.telegram.org with the bot's id;
+   Telegram comes back to `public/telegram-login.html` on the Worker (the
+   bot's domain, set with /setdomain), which passes the signed result to the
+   app at `/signed-in`. Only the app's own schemes (`exp`, `medkit`) are
+   followed.
+2. Apple is its own sheet; the token goes to the function with its nonce.
+3. The function checks Telegram's signature (or has GoTrue check Apple's
+   token), merges the caller's anonymous user into the account, and answers
+   with a session: a one-time token for Telegram, the session itself for
+   Apple.
+4. Sync waits while this runs: a cycle as the account before the merge would
+   find none of the phone's cabinets and drop them.
+
+There is no signing out yet.
 
 
 ## Notifications
